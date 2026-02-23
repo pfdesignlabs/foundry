@@ -2,7 +2,7 @@
 
 **Target:** 2026-03-01  
 **Started:** 2026-02-23  
-**Voortgang:** 9/11 work items done
+**Voortgang:** 10/11 work items done
 
 **Doel:** Foundry's fundament opzetten: package structuur, declaratieve governance (CLAUDE.md), en runtime enforcement via het .forge/ governor systeem (contracten, hooks, slice tracking).
 
@@ -214,19 +214,27 @@ Succesvol opgeleverd. SessionStart print sprint banner naar stderr + hookSpecifi
 
 ---
 
-## ⬜ WI_0009 — Testing contract + pre-commit test check
+## ✅ WI_0009 — Testing contract + pre-commit test check
 
-**Status:** planned  
-**Branch:** `—`
+**Status:** done  
+**Branch:** `wi/WI_0009-testing-contract`
 
 **Beschrijving:**  
 testing.yaml contract aanmaken. pre-bash.sh uitbreiden: bij git commit met gewijzigde .py bestanden → run pytest --tb=short -q → WARN als falend (fail-open, 60s timeout).
 
 **Acceptatiecriteria:**
 
-[ ] .forge/contracts/testing.yaml aanwezig
-[ ] git commit met staged .py bestanden triggert pytest run
-[ ] Falende tests geven WARN (niet BLOCK) — fail-open
+[x] .forge/contracts/testing.yaml aanwezig
+[x] git commit met staged .py bestanden triggert pytest run
+[x] Falende tests geven WARN (niet BLOCK) — fail-open
+
+**Evidence:**
+
+- `.forge/contracts/testing.yaml`
+- `.forge/governor.py`
+
+**Uitkomst:**  
+Succesvol opgeleverd. testing.yaml contract aangemaakt. Governor bash-intercept uitgebreid: detecteert gestaged .py bestanden via subprocess, draait pytest met 60s timeout, geeft WARN bij falen. Commit gaat altijd door (fail-open).
 
 ---
 
@@ -274,4 +282,4 @@ Succesvol opgeleverd. Governor haalt huidige branch op via subprocess (fail-open
 
 ---
 
-_Gegenereerd door governor op 2026-02-23 18:53 UTC_
+_Gegenereerd door governor op 2026-02-23 18:57 UTC_

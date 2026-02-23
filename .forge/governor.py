@@ -429,7 +429,7 @@ def _handle_bash_intercept(gov: "Governor"):
                         "message": f"Directe merge in '{branch}' — overweeg een PR.",
                     })
 
-    # git commit → check message format + slice membership
+    # git commit → check message format + slice membership + pytest on staged .py files
     elif re.search(r"\bgit\s+commit\b", command):
         msg_match = re.search(r'-m\s+["\']([^"\']+)["\']', command)
         if msg_match:
@@ -438,6 +438,32 @@ def _handle_bash_intercept(gov: "Governor"):
             wi = gov._extract_workitem(msg)
             if wi:
                 violations += gov.check_work_in_slice(wi)
+
+        # Run pytest if staged .py files — fail-open, 60s timeout
+        try:
+            staged = subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                capture_output=True, text=True, timeout=5,
+            )
+            has_py = any(f.endswith(".py") for f in staged.stdout.splitlines() if f)
+            if has_py:
+                pytest_run = subprocess.run(
+                    ["python", "-m", "pytest", "--tb=short", "-q"],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if pytest_run.returncode != 0:
+                    output = (pytest_run.stdout + pytest_run.stderr).strip()
+                    violations.append({
+                        "contract": "testing",
+                        "rule": "pytest-on-commit",
+                        "enforce": "warn",
+                        "message": (
+                            f"pytest gefaald (fail-open — commit gaat door):\n"
+                            + "\n".join(output.splitlines()[-20:])
+                        ),
+                    })
+        except Exception:
+            pass  # fail-open: pytest errors blokkeren nooit een commit
 
     # git checkout -b / switch -c / branch → check branch naming
     elif re.search(r"\bgit\s+(checkout\s+-b|switch\s+-c|branch)\b", command):

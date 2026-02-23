@@ -180,17 +180,22 @@ workitems:
 
   - id: WI_0009
     title: "Testing contract + pre-commit test check"
-    status: planned
-    branch: null
+    status: done
+    branch: wi/WI_0009-testing-contract
     description: >
       testing.yaml contract aanmaken. pre-bash.sh uitbreiden: bij git commit met
       gewijzigde .py bestanden → run pytest --tb=short -q → WARN als falend (fail-open, 60s timeout).
     acceptance_criteria:
-      - "[ ] .forge/contracts/testing.yaml aanwezig"
-      - "[ ] git commit met staged .py bestanden triggert pytest run"
-      - "[ ] Falende tests geven WARN (niet BLOCK) — fail-open"
-    outcome: null
-    evidence: []
+      - "[x] .forge/contracts/testing.yaml aanwezig"
+      - "[x] git commit met staged .py bestanden triggert pytest run"
+      - "[x] Falende tests geven WARN (niet BLOCK) — fail-open"
+    outcome: >
+      Succesvol opgeleverd. testing.yaml contract aangemaakt. Governor bash-intercept
+      uitgebreid: detecteert gestaged .py bestanden via subprocess, draait pytest met
+      60s timeout, geeft WARN bij falen. Commit gaat altijd door (fail-open).
+    evidence:
+      - .forge/contracts/testing.yaml
+      - .forge/governor.py
 
   - id: WI_0010
     title: "Governor unit tests + audit-summary command"
@@ -233,5 +238,5 @@ workitems:
 
 metrics:
   velocity_target: 6
-  completed_this_slice: 9
+  completed_this_slice: 10
   carry_over_previous: 0

@@ -129,9 +129,30 @@ Current phase and allowed outputs are always in `.forge/slice.yaml`.
 ```bash
 uv venv && source .venv/bin/activate
 uv sync
-pytest
-python -m foundry --help
+pytest                              # run tests
+ruff check src/                     # lint
+mypy src/foundry/                   # type check
+python .forge/governor.py status    # sprint status
 ```
+
+---
+
+## Testing & Code Review Policy
+
+**Testing:**
+- All new code requires tests in `tests/` (mirrors `src/` structure)
+- `pytest` must pass before any merge to `feat/*` or `develop`
+- Coverage target: ≥60% now, ≥80% from Phase 3 onward
+- Bug fixes include a regression test
+
+**Code review:**
+- All PRs use `.github/PULL_REQUEST_TEMPLATE.md`
+- Checklist: tests pass, ruff clean, no undocumented breaking changes
+- WI evidence updated in `.forge/slice.yaml` before merging
+
+**Static analysis:**
+- `ruff check src/` — linting (enforced before merge)
+- `mypy src/foundry/` — type checking (informational, not yet blocking)
 
 ---
 

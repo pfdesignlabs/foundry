@@ -16,6 +16,14 @@ SLICE_FILE = FORGE_DIR / "slice.yaml"
 AUDIT_LOG = FORGE_DIR / "audit.jsonl"
 STATUS_MD = Path("tracking") / "STATUS.md"
 
+
+def _has_evidence(wi: dict) -> bool:
+    """Physical WIs require outcome; code WIs require evidence files."""
+    if wi.get("type") == "physical":
+        return bool((wi.get("outcome") or "").strip())
+    return bool(wi.get("evidence"))
+
+
 COMMIT_PATTERN = re.compile(
     r"^\[(WI_\d{4}|FEATURE_TRACKING|DEV_GOVERNANCE)\]\s+"
     r"(feat|fix|refactor|test|docs|chore|ci)\(.+\):\s+.+"
@@ -85,7 +93,8 @@ class Governor:
     def check_work_in_slice(self, workitem_id: str) -> list[dict]:
         violations = []
         slice_data = self.slice.get("slice", {})
-        known_ids = [wi["id"] for wi in slice_data.get("workitems", [])]
+        # workitems are at root level of slice.yaml, not nested under slice:
+        known_ids = [wi["id"] for wi in self.slice.get("workitems", [])]
         if workitem_id and workitem_id not in known_ids:
             violations.append({
                 "contract": "workitem-discipline",
@@ -100,9 +109,9 @@ class Governor:
 
     def check_active_limits(self) -> list[dict]:
         violations = []
-        slice_data = self.slice.get("slice", {})
+        # workitems are at root level of slice.yaml
         active = [
-            wi for wi in slice_data.get("workitems", [])
+            wi for wi in self.slice.get("workitems", [])
             if wi.get("status") == "in_progress"
         ]
         if len(active) > 2:
@@ -119,19 +128,21 @@ class Governor:
 
     def slice_status(self) -> dict:
         slice_data = self.slice.get("slice", {})
-        workitems = slice_data.get("workitems", [])
+        # workitems are at root level of slice.yaml
+        workitems = self.slice.get("workitems", [])
         by_status: dict[str, list] = defaultdict(list)
         for wi in workitems:
             by_status[wi.get("status", "unknown")].append(wi["id"])
         missing_evidence = [
             wi["id"] for wi in workitems
             if wi.get("status") in ("in_progress", "done")
-            and not wi.get("evidence")
+            and not _has_evidence(wi)
         ]
+        target = slice_data.get("target")
         return {
             "slice_id": slice_data.get("id"),
             "slice_name": slice_data.get("name"),
-            "target": slice_data.get("target"),
+            "target": str(target) if target is not None else None,
             "by_status": dict(by_status),
             "total": len(workitems),
             "completed": len(by_status.get("done", [])),
@@ -140,29 +151,89 @@ class Governor:
         }
 
     def write_status_md(self, status: dict):
-        """Write human-readable STATUS.md to tracking/."""
+        """Write comprehensive sprint STATUS.md with full WI history to tracking/."""
         icon = {"done": "✅", "in_progress": "🔄", "planned": "⬜", "blocked": "❌"}
+        slice_data = self.slice.get("slice", {})
+        workitems = self.slice.get("workitems", [])
+
         lines = [
             f"# Sprint {status['slice_id']} — {status['slice_name']}",
             "",
             f"**Target:** {status['target']}  ",
+            f"**Started:** {slice_data.get('started', '?')}  ",
             f"**Voortgang:** {status['completed']}/{status['total']} work items done",
             "",
-            "## Work Items",
         ]
-        for s, ids in sorted(status["by_status"].items()):
-            for wi_id in ids:
-                lines.append(f"- {icon.get(s, '❓')} `{wi_id}` ({s})")
-        if status["missing_evidence"]:
-            lines += ["", "## ⚠️ Ontbrekende evidence"]
-            for wi_id in status["missing_evidence"]:
-                lines.append(f"- `{wi_id}`")
+
+        goal = slice_data.get("goal", "").strip()
+        if goal:
+            lines += [f"**Doel:** {goal}", ""]
+
         if status["warnings"]:
-            lines += ["", "## ⚠️ Waarschuwingen"]
+            lines += ["## ⚠️ Waarschuwingen", ""]
             for w in status["warnings"]:
                 lines.append(f"- {w['message']}")
+            lines.append("")
+
+        lines.append("---")
+        lines.append("")
+
+        # Full WI history — one section per work item
+        for wi in workitems:
+            wi_id = wi["id"]
+            wi_status = wi.get("status", "unknown")
+            wi_type = wi.get("type", "code")
+            # Physical WIs get 🔧 suffix on their status icon
+            base_icon = icon.get(wi_status, "❓")
+            wi_icon = f"{base_icon}🔧" if wi_type == "physical" else base_icon
+            branch = wi.get("branch") or "—"
+            type_label = " _(physical)_" if wi_type == "physical" else ""
+
+            lines += [
+                f"## {wi_icon} {wi_id} — {wi['title']}{type_label}",
+                "",
+                f"**Status:** {wi_status}  ",
+                f"**Branch:** `{branch}`",
+                "",
+            ]
+
+            desc = (wi.get("description") or "").strip()
+            if desc:
+                lines += ["**Beschrijving:**  ", desc, ""]
+
+            criteria = wi.get("acceptance_criteria") or []
+            if criteria:
+                lines += ["**Acceptatiecriteria:**", ""]
+                for c in criteria:
+                    lines.append(f"{c}")
+                lines.append("")
+
+            evidence = wi.get("evidence") or []
+            if evidence:
+                ev_label = "**Evidence:**" if wi_type == "code" else "**Evidence / Bewijs:**"
+                lines += [ev_label, ""]
+                for e in evidence:
+                    # URLs rendered as links, file paths as code, free text as plain
+                    if str(e).startswith(("http://", "https://")):
+                        lines.append(f"- [{e}]({e})")
+                    elif any(str(e).startswith(p) for p in ("foto:", "meting:", "link:", "notitie:")):
+                        lines.append(f"- {e}")
+                    else:
+                        lines.append(f"- `{e}`")
+                lines.append("")
+
+            outcome = (wi.get("outcome") or "").strip()
+            if outcome:
+                lines += ["**Uitkomst:**  ", outcome, ""]
+
+            depends_on = wi.get("depends_on") or []
+            if depends_on:
+                lines += [f"**Afhankelijkheden:** {', '.join(depends_on)}", ""]
+
+            lines.append("---")
+            lines.append("")
+
         lines += [
-            "",
             f"_Gegenereerd door governor op "
             f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC_",
         ]
@@ -212,6 +283,19 @@ class Governor:
             result = self.slice_status()
             self.write_status_md(result)
             return result
+
+        elif event == "sprint-close":
+            result = self.slice_status()
+            self.write_status_md(result)
+            sprint_id = result.get("slice_id") or "UNKNOWN"
+            archive_dir = Path("tracking") / "sprints"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            archive_path = archive_dir / f"{sprint_id}.md"
+            import shutil
+            shutil.copy2(STATUS_MD, archive_path)
+            self.audit("sprint-close", {"sprint_id": sprint_id, "archive": str(archive_path)},
+                       Verdict.ALLOW)
+            return {"verdict": "allow", "sprint_id": sprint_id, "archived_to": str(archive_path)}
 
         has_block = any(v["enforce"] == "hard-block" for v in violations)
         has_warn = any(v["enforce"] == "warn" for v in violations)
@@ -318,7 +402,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(
             "Usage: governor.py <event> [--context JSON]\n"
-            "Events: commit, branch-create, session-start, status, bash-intercept",
+            "Events: commit, branch-create, session-start, status, sprint-close, bash-intercept",
             file=sys.stderr,
         )
         sys.exit(1)

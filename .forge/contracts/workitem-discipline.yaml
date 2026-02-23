@@ -1,0 +1,19 @@
+contract: workitem-discipline
+version: 1
+scope: development-workflow
+description: >
+  Work items worden bijgehouden in de actieve slice (.forge/slice.yaml).
+  Slice is de enige bron van waarheid voor sprint status.
+
+rules:
+  - id: max-active-items
+    enforce: warn
+    description: "Maximaal 2 items tegelijk met status 'in_progress'"
+
+  - id: no-work-outside-slice
+    enforce: warn
+    description: "Werk alleen aan items die gedefinieerd zijn in de actieve slice"
+
+  - id: done-requires-evidence
+    enforce: warn
+    description: "Status 'done' vereist minimaal één ingevuld evidence pad"

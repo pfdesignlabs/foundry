@@ -515,6 +515,31 @@ if __name__ == "__main__":
         _handle_bash_intercept(gov)
         sys.exit(0)
 
+    if event == "audit-summary":
+        if not AUDIT_LOG.exists():
+            print("Geen audit log gevonden.", file=sys.stderr)
+            sys.exit(0)
+        lines = AUDIT_LOG.read_text().splitlines()
+        # Show last 20 entries
+        recent = lines[-20:]
+        entries = []
+        for line in recent:
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        icon = {Verdict.ALLOW.value: "✅", Verdict.WARN.value: "⚠️ ", Verdict.BLOCK.value: "❌"}
+        print(f"Audit trail — laatste {len(entries)} events:\n")
+        for e in entries:
+            ts = e.get("timestamp", "?")[:16].replace("T", " ")
+            verdict = e.get("verdict", "?")
+            event_name = e.get("event", "?")
+            marker = icon.get(verdict, "❓")
+            violations = e.get("violations", [])
+            msg = violations[0]["message"][:60] if violations else ""
+            print(f"  {marker} {ts}  {event_name:<20} {verdict:<8}  {msg}")
+        sys.exit(0)
+
     # Only --context arg is supported; stdin is reserved for bash-intercept
     context: dict = {}
     if "--context" in sys.argv:

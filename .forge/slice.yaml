@@ -199,18 +199,24 @@ workitems:
 
   - id: WI_0010
     title: "Governor unit tests + audit-summary command"
-    status: planned
-    branch: null
+    status: done
+    branch: wi/WI_0010-governor-tests
     description: >
       pytest unit tests voor governor.py (minimaal 15 cases): commit validatie,
       branch naming, slice membership, WIP limits, verdict prioriteit, graceful
       handling van ontbrekende contracten/slice. Audit-summary subcommand toevoegen.
     acceptance_criteria:
-      - "[ ] tests/test_governor.py aanwezig met ≥15 test cases"
-      - "[ ] pytest slaagt groen"
-      - "[ ] python .forge/governor.py audit-summary toont recent audit trail"
-    outcome: null
-    evidence: []
+      - "[x] tests/test_governor.py aanwezig met ≥15 test cases"
+      - "[x] pytest slaagt groen"
+      - "[x] python .forge/governor.py audit-summary toont recent audit trail"
+    outcome: >
+      Succesvol opgeleverd. 46 test cases in 20 test functies (parametrized): commit
+      validatie, branch naming, slice membership, WIP limits, verdict prioriteit,
+      graceful fallbacks, slice_status counts, evaluate() integratie, _extract_workitem.
+      Alle 46 groen. audit-summary toont laatste 20 audit events met iconen.
+    evidence:
+      - tests/test_governor.py
+      - .forge/governor.py
 
   - id: WI_0011
     title: "Merge-source enforcement in governor.py"
@@ -238,5 +244,5 @@ workitems:
 
 metrics:
   velocity_target: 6
-  completed_this_slice: 10
+  completed_this_slice: 11
   carry_over_previous: 0

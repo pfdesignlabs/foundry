@@ -2,7 +2,7 @@
 
 **Target:** 2026-03-01  
 **Started:** 2026-02-23  
-**Voortgang:** 10/11 work items done
+**Voortgang:** 11/11 work items done
 
 **Doel:** Foundry's fundament opzetten: package structuur, declaratieve governance (CLAUDE.md), en runtime enforcement via het .forge/ governor systeem (contracten, hooks, slice tracking).
 
@@ -238,19 +238,27 @@ Succesvol opgeleverd. testing.yaml contract aangemaakt. Governor bash-intercept 
 
 ---
 
-## ⬜ WI_0010 — Governor unit tests + audit-summary command
+## ✅ WI_0010 — Governor unit tests + audit-summary command
 
-**Status:** planned  
-**Branch:** `—`
+**Status:** done  
+**Branch:** `wi/WI_0010-governor-tests`
 
 **Beschrijving:**  
 pytest unit tests voor governor.py (minimaal 15 cases): commit validatie, branch naming, slice membership, WIP limits, verdict prioriteit, graceful handling van ontbrekende contracten/slice. Audit-summary subcommand toevoegen.
 
 **Acceptatiecriteria:**
 
-[ ] tests/test_governor.py aanwezig met ≥15 test cases
-[ ] pytest slaagt groen
-[ ] python .forge/governor.py audit-summary toont recent audit trail
+[x] tests/test_governor.py aanwezig met ≥15 test cases
+[x] pytest slaagt groen
+[x] python .forge/governor.py audit-summary toont recent audit trail
+
+**Evidence:**
+
+- `tests/test_governor.py`
+- `.forge/governor.py`
+
+**Uitkomst:**  
+Succesvol opgeleverd. 46 test cases in 20 test functies (parametrized): commit validatie, branch naming, slice membership, WIP limits, verdict prioriteit, graceful fallbacks, slice_status counts, evaluate() integratie, _extract_workitem. Alle 46 groen. audit-summary toont laatste 20 audit events met iconen.
 
 ---
 
@@ -282,4 +290,4 @@ Succesvol opgeleverd. Governor haalt huidige branch op via subprocess (fail-open
 
 ---
 
-_Gegenereerd door governor op 2026-02-23 18:57 UTC_
+_Gegenereerd door governor op 2026-02-23 19:00 UTC_

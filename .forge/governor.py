@@ -271,7 +271,10 @@ class Governor:
 
         elif event == "session-start":
             try:
+                status = self.slice_status()
+                self.write_status_md(status)
                 violations += self.check_active_limits()
+                return {**status, "event": "session-start", "violations": violations}
             except Exception as e:
                 violations.append({
                     "contract": "workitem-discipline",
@@ -279,6 +282,24 @@ class Governor:
                     "enforce": "hard-block",
                     "message": f"slice.yaml onleesbaar of corrupt: {e}",
                 })
+
+        elif event == "session-stop":
+            status = self.slice_status()
+            self.write_status_md(status)
+            remaining = [
+                wi["id"]
+                for wi in self.slice.get("workitems", [])
+                if wi.get("status") != "done"
+            ]
+            return {
+                "event": "session-stop",
+                "slice_id": status["slice_id"],
+                "slice_name": status["slice_name"],
+                "completed": status["completed"],
+                "total": status["total"],
+                "remaining": remaining,
+                "missing_evidence": status["missing_evidence"],
+            }
 
         elif event == "status":
             result = self.slice_status()
@@ -476,6 +497,62 @@ if __name__ == "__main__":
 
     gov = Governor()
     result = gov.evaluate(event, context)
+
+    if event == "session-start":
+        violations = result.get("violations", [])
+        has_block = any(v["enforce"] == "hard-block" for v in violations)
+        completed = result.get("completed", "?")
+        total = result.get("total", "?")
+        slice_id = result.get("slice_id", "?")
+        slice_name = result.get("slice_name", "?")
+        target = result.get("target", "?")
+        missing = result.get("missing_evidence", [])
+
+        banner_lines = [
+            f"🔧 Foundry Governor — Sessie gestart",
+            f"Sprint {slice_id}: {slice_name}",
+            f"Voortgang: {completed}/{total} done | Target: {target}",
+        ]
+        if missing:
+            banner_lines.append(f"⚠️  Missing evidence: {', '.join(missing)}")
+        for v in violations:
+            prefix = "❌" if v["enforce"] == "hard-block" else "⚠️ "
+            banner_lines.append(f"{prefix} {v['message']}")
+
+        print("\n".join(banner_lines), file=sys.stderr)
+
+        # additionalContext for Claude
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "\n".join(banner_lines),
+            }
+        }))
+
+        if has_block:
+            sys.exit(2)
+        sys.exit(0)
+
+    if event == "session-stop":
+        completed = result.get("completed", "?")
+        total = result.get("total", "?")
+        slice_id = result.get("slice_id", "?")
+        remaining = result.get("remaining", [])
+        missing = result.get("missing_evidence", [])
+
+        lines = [
+            f"🏁 Foundry Governor — Sessie afgesloten",
+            f"Sprint {slice_id}: {completed}/{total} done",
+        ]
+        if remaining:
+            lines.append(f"Nog open: {', '.join(remaining)}")
+        if missing:
+            lines.append(f"⚠️  Missing evidence: {', '.join(missing)}")
+        lines.append("STATUS.md bijgewerkt.")
+
+        print("\n".join(lines), file=sys.stderr)
+        sys.exit(0)
+
     print(json.dumps(result, indent=2))
 
     if result.get("verdict") == "block":

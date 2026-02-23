@@ -2,7 +2,7 @@
 
 **Target:** 2026-03-01  
 **Started:** 2026-02-23  
-**Voortgang:** 8/11 work items done
+**Voortgang:** 9/11 work items done
 
 **Doel:** Foundry's fundament opzetten: package structuur, declaratieve governance (CLAUDE.md), en runtime enforcement via het .forge/ governor systeem (contracten, hooks, slice tracking).
 
@@ -188,19 +188,27 @@ Succesvol opgeleverd. forge-status toont volledig sprint dashboard (header, tabe
 
 ---
 
-## ⬜ WI_0008 — SessionStart + Stop hooks
+## ✅ WI_0008 — SessionStart + Stop hooks
 
-**Status:** planned  
-**Branch:** `—`
+**Status:** done  
+**Branch:** `wi/WI_0008-session-hooks`
 
 **Beschrijving:**  
 SessionStart hook geeft slice status bij sessie start (BLOCK bij corrupt slice.yaml, WARN voor rest). Stop hook toont sprint samenvatting aan einde van sessie.
 
 **Acceptatiecriteria:**
 
-[ ] SessionStart hook geeft sprint status bij sessie start
-[ ] Corrupt slice.yaml → exit 2 (sessie geblokkeerd)
-[ ] Stop hook genereert session summary
+[x] SessionStart hook geeft sprint status bij sessie start
+[x] Corrupt slice.yaml → exit 2 (sessie geblokkeerd)
+[x] Stop hook genereert session summary
+
+**Evidence:**
+
+- `.forge/governor.py`
+- `.claude/settings.json`
+
+**Uitkomst:**  
+Succesvol opgeleverd. SessionStart print sprint banner naar stderr + hookSpecificOutput JSON voor Claude context. Stop hook toont samenvatting (done/total, open items, missing evidence) en regenereert STATUS.md. Beide getest en werkend.
 
 **Afhankelijkheden:** WI_0005, WI_0006
 
@@ -266,4 +274,4 @@ Succesvol opgeleverd. Governor haalt huidige branch op via subprocess (fail-open
 
 ---
 
-_Gegenereerd door governor op 2026-02-23 17:24 UTC_
+_Gegenereerd door governor op 2026-02-23 18:53 UTC_

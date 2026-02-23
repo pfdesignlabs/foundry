@@ -16,6 +16,14 @@ SLICE_FILE = FORGE_DIR / "slice.yaml"
 AUDIT_LOG = FORGE_DIR / "audit.jsonl"
 STATUS_MD = Path("tracking") / "STATUS.md"
 
+
+def _has_evidence(wi: dict) -> bool:
+    """Physical WIs require outcome; code WIs require evidence files."""
+    if wi.get("type") == "physical":
+        return bool((wi.get("outcome") or "").strip())
+    return bool(wi.get("evidence"))
+
+
 COMMIT_PATTERN = re.compile(
     r"^\[(WI_\d{4}|FEATURE_TRACKING|DEV_GOVERNANCE)\]\s+"
     r"(feat|fix|refactor|test|docs|chore|ci)\(.+\):\s+.+"
@@ -128,7 +136,7 @@ class Governor:
         missing_evidence = [
             wi["id"] for wi in workitems
             if wi.get("status") in ("in_progress", "done")
-            and not wi.get("evidence")
+            and not _has_evidence(wi)
         ]
         target = slice_data.get("target")
         return {
@@ -174,11 +182,15 @@ class Governor:
         for wi in workitems:
             wi_id = wi["id"]
             wi_status = wi.get("status", "unknown")
-            wi_icon = icon.get(wi_status, "❓")
+            wi_type = wi.get("type", "code")
+            # Physical WIs get 🔧 suffix on their status icon
+            base_icon = icon.get(wi_status, "❓")
+            wi_icon = f"{base_icon}🔧" if wi_type == "physical" else base_icon
             branch = wi.get("branch") or "—"
+            type_label = " _(physical)_" if wi_type == "physical" else ""
 
             lines += [
-                f"## {wi_icon} {wi_id} — {wi['title']}",
+                f"## {wi_icon} {wi_id} — {wi['title']}{type_label}",
                 "",
                 f"**Status:** {wi_status}  ",
                 f"**Branch:** `{branch}`",
@@ -198,9 +210,16 @@ class Governor:
 
             evidence = wi.get("evidence") or []
             if evidence:
-                lines += ["**Evidence:**", ""]
+                ev_label = "**Evidence:**" if wi_type == "code" else "**Evidence / Bewijs:**"
+                lines += [ev_label, ""]
                 for e in evidence:
-                    lines.append(f"- `{e}`")
+                    # URLs rendered as links, file paths as code, free text as plain
+                    if str(e).startswith(("http://", "https://")):
+                        lines.append(f"- [{e}]({e})")
+                    elif any(str(e).startswith(p) for p in ("foto:", "meting:", "link:", "notitie:")):
+                        lines.append(f"- {e}")
+                    else:
+                        lines.append(f"- `{e}`")
                 lines.append("")
 
             outcome = (wi.get("outcome") or "").strip()

@@ -284,6 +284,19 @@ class Governor:
             self.write_status_md(result)
             return result
 
+        elif event == "sprint-close":
+            result = self.slice_status()
+            self.write_status_md(result)
+            sprint_id = result.get("slice_id") or "UNKNOWN"
+            archive_dir = Path("tracking") / "sprints"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            archive_path = archive_dir / f"{sprint_id}.md"
+            import shutil
+            shutil.copy2(STATUS_MD, archive_path)
+            self.audit("sprint-close", {"sprint_id": sprint_id, "archive": str(archive_path)},
+                       Verdict.ALLOW)
+            return {"verdict": "allow", "sprint_id": sprint_id, "archived_to": str(archive_path)}
+
         has_block = any(v["enforce"] == "hard-block" for v in violations)
         has_warn = any(v["enforce"] == "warn" for v in violations)
         verdict = (
@@ -389,7 +402,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(
             "Usage: governor.py <event> [--context JSON]\n"
-            "Events: commit, branch-create, session-start, status, bash-intercept",
+            "Events: commit, branch-create, session-start, status, sprint-close, bash-intercept",
             file=sys.stderr,
         )
         sys.exit(1)

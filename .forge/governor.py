@@ -1,0 +1,345 @@
+#!/usr/bin/env python3
+"""Foundry Development Governor — Contract enforcement engine."""
+
+import json
+import re
+import sys
+import yaml
+from datetime import datetime
+from pathlib import Path
+from enum import Enum
+from collections import defaultdict
+
+FORGE_DIR = Path(".forge")
+CONTRACTS_DIR = FORGE_DIR / "contracts"
+SLICE_FILE = FORGE_DIR / "slice.yaml"
+AUDIT_LOG = FORGE_DIR / "audit.jsonl"
+STATUS_MD = Path("tracking") / "STATUS.md"
+
+COMMIT_PATTERN = re.compile(
+    r"^\[(WI_\d{4}|FEATURE_TRACKING|DEV_GOVERNANCE)\]\s+"
+    r"(feat|fix|refactor|test|docs|chore|ci)\(.+\):\s+.+"
+)
+
+BRANCH_PATTERN = re.compile(
+    r"^(wi/WI_\d{4}-.+|feat/.+|release/v\d+\.\d+\.\d+|hotfix/.+|main|develop)$"
+)
+
+PROTECTED_BRANCHES = {"main", "develop"}
+
+
+class Verdict(Enum):
+    ALLOW = "allow"
+    WARN = "warn"
+    BLOCK = "block"
+
+
+class Governor:
+    def __init__(self):
+        self.contracts = self._load_contracts()
+        self.slice = self._load_slice()
+
+    def _load_contracts(self) -> list[dict]:
+        contracts = []
+        if CONTRACTS_DIR.exists():
+            for f in sorted(CONTRACTS_DIR.glob("*.yaml")):
+                try:
+                    contracts.append(yaml.safe_load(f.read_text()))
+                except yaml.YAMLError as e:
+                    print(f"Warning: could not load contract {f}: {e}", file=sys.stderr)
+        return contracts
+
+    def _load_slice(self) -> dict:
+        if SLICE_FILE.exists():
+            return yaml.safe_load(SLICE_FILE.read_text()) or {}
+        return {}
+
+    def check_commit_message(self, message: str) -> list[dict]:
+        violations = []
+        if not COMMIT_PATTERN.match(message.strip()):
+            violations.append({
+                "contract": "commit-discipline",
+                "rule": "commit-references-workitem",
+                "enforce": "warn",
+                "message": (
+                    f"Commit message voldoet niet aan format: "
+                    f"[WI_XXXX] type(scope): description. Got: '{message[:60]}'"
+                ),
+            })
+        return violations
+
+    def check_branch_name(self, branch: str) -> list[dict]:
+        violations = []
+        if not BRANCH_PATTERN.match(branch):
+            violations.append({
+                "contract": "merge-strategy",
+                "rule": "branch-naming",
+                "enforce": "hard-block",
+                "message": (
+                    f"Branch naam '{branch}' voldoet niet aan naming convention. "
+                    f"Gebruik: wi/WI_XXXX-slug, feat/slug, release/vX.Y.Z, of hotfix/slug"
+                ),
+            })
+        return violations
+
+    def check_work_in_slice(self, workitem_id: str) -> list[dict]:
+        violations = []
+        slice_data = self.slice.get("slice", {})
+        known_ids = [wi["id"] for wi in slice_data.get("workitems", [])]
+        if workitem_id and workitem_id not in known_ids:
+            violations.append({
+                "contract": "workitem-discipline",
+                "rule": "no-work-outside-slice",
+                "enforce": "warn",
+                "message": (
+                    f"Workitem '{workitem_id}' niet gevonden in actieve slice "
+                    f"'{slice_data.get('id', '?')}'"
+                ),
+            })
+        return violations
+
+    def check_active_limits(self) -> list[dict]:
+        violations = []
+        slice_data = self.slice.get("slice", {})
+        active = [
+            wi for wi in slice_data.get("workitems", [])
+            if wi.get("status") == "in_progress"
+        ]
+        if len(active) > 2:
+            violations.append({
+                "contract": "workitem-discipline",
+                "rule": "max-active-items",
+                "enforce": "warn",
+                "message": (
+                    f"{len(active)} items actief (max 2): "
+                    f"{[wi['id'] for wi in active]}"
+                ),
+            })
+        return violations
+
+    def slice_status(self) -> dict:
+        slice_data = self.slice.get("slice", {})
+        workitems = slice_data.get("workitems", [])
+        by_status: dict[str, list] = defaultdict(list)
+        for wi in workitems:
+            by_status[wi.get("status", "unknown")].append(wi["id"])
+        missing_evidence = [
+            wi["id"] for wi in workitems
+            if wi.get("status") in ("in_progress", "done")
+            and not wi.get("evidence")
+        ]
+        return {
+            "slice_id": slice_data.get("id"),
+            "slice_name": slice_data.get("name"),
+            "target": slice_data.get("target"),
+            "by_status": dict(by_status),
+            "total": len(workitems),
+            "completed": len(by_status.get("done", [])),
+            "missing_evidence": missing_evidence,
+            "warnings": self.check_active_limits(),
+        }
+
+    def write_status_md(self, status: dict):
+        """Write human-readable STATUS.md to tracking/."""
+        icon = {"done": "✅", "in_progress": "🔄", "planned": "⬜", "blocked": "❌"}
+        lines = [
+            f"# Sprint {status['slice_id']} — {status['slice_name']}",
+            "",
+            f"**Target:** {status['target']}  ",
+            f"**Voortgang:** {status['completed']}/{status['total']} work items done",
+            "",
+            "## Work Items",
+        ]
+        for s, ids in sorted(status["by_status"].items()):
+            for wi_id in ids:
+                lines.append(f"- {icon.get(s, '❓')} `{wi_id}` ({s})")
+        if status["missing_evidence"]:
+            lines += ["", "## ⚠️ Ontbrekende evidence"]
+            for wi_id in status["missing_evidence"]:
+                lines.append(f"- `{wi_id}`")
+        if status["warnings"]:
+            lines += ["", "## ⚠️ Waarschuwingen"]
+            for w in status["warnings"]:
+                lines.append(f"- {w['message']}")
+        lines += [
+            "",
+            f"_Gegenereerd door governor op "
+            f"{datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC_",
+        ]
+        STATUS_MD.parent.mkdir(parents=True, exist_ok=True)
+        STATUS_MD.write_text("\n".join(lines) + "\n")
+
+    def audit(self, event: str, details: dict, verdict: Verdict):
+        entry = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "event": event,
+            "verdict": verdict.value,
+            **details,
+        }
+        AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(AUDIT_LOG, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+    @staticmethod
+    def _extract_workitem(message: str) -> str | None:
+        match = re.search(r"WI_\d{4}", message)
+        return match.group(0) if match else None
+
+    def evaluate(self, event: str, context: dict) -> dict:
+        violations: list[dict] = []
+
+        if event == "commit":
+            violations += self.check_commit_message(context.get("message", ""))
+            wi = self._extract_workitem(context.get("message", ""))
+            if wi:
+                violations += self.check_work_in_slice(wi)
+
+        elif event == "branch-create":
+            violations += self.check_branch_name(context.get("branch", ""))
+
+        elif event == "session-start":
+            try:
+                violations += self.check_active_limits()
+            except Exception as e:
+                violations.append({
+                    "contract": "workitem-discipline",
+                    "rule": "slice-unreadable",
+                    "enforce": "hard-block",
+                    "message": f"slice.yaml onleesbaar of corrupt: {e}",
+                })
+
+        elif event == "status":
+            result = self.slice_status()
+            self.write_status_md(result)
+            return result
+
+        has_block = any(v["enforce"] == "hard-block" for v in violations)
+        has_warn = any(v["enforce"] == "warn" for v in violations)
+        verdict = (
+            Verdict.BLOCK if has_block
+            else Verdict.WARN if has_warn
+            else Verdict.ALLOW
+        )
+        self.audit(event, {"violations": violations, "context": context}, verdict)
+        return {
+            "verdict": verdict.value,
+            "violations": violations,
+            "violation_count": len(violations),
+        }
+
+
+def _handle_bash_intercept(gov: "Governor"):
+    """Handle PreToolUse Bash hook — reads stdin, extracts command, enforces contracts."""
+    raw = sys.stdin.read() if not sys.stdin.isatty() else "{}"
+    try:
+        hook_input = json.loads(raw)
+    except json.JSONDecodeError:
+        sys.exit(0)
+
+    command = (hook_input.get("tool_input") or {}).get("command", "")
+    if not command:
+        sys.exit(0)
+
+    violations: list[dict] = []
+
+    # git push → BLOCK on protected branches
+    if re.search(r"\bgit\s+push\b", command):
+        for branch in PROTECTED_BRANCHES:
+            if re.search(rf"\b{branch}\b", command):
+                violations.append({
+                    "contract": "merge-strategy",
+                    "rule": "no-direct-push-protected",
+                    "enforce": "hard-block",
+                    "message": (
+                        f"Directe push naar '{branch}' is geblokkeerd. "
+                        f"Gebruik een PR via feat/* of release/* branch."
+                    ),
+                })
+                break
+
+    # git merge → WARN on protected branches
+    elif re.search(r"\bgit\s+merge\b", command):
+        for branch in PROTECTED_BRANCHES:
+            if re.search(rf"\b{branch}\b", command):
+                violations.append({
+                    "contract": "merge-strategy",
+                    "rule": "no-direct-merge-protected",
+                    "enforce": "warn",
+                    "message": (
+                        f"Directe merge in '{branch}' — overweeg een PR."
+                    ),
+                })
+
+    # git commit → check message format + slice membership
+    elif re.search(r"\bgit\s+commit\b", command):
+        msg_match = re.search(r'-m\s+["\']([^"\']+)["\']', command)
+        if msg_match:
+            msg = msg_match.group(1)
+            violations += gov.check_commit_message(msg)
+            wi = gov._extract_workitem(msg)
+            if wi:
+                violations += gov.check_work_in_slice(wi)
+
+    # git checkout -b / switch -c / branch → check branch naming
+    elif re.search(r"\bgit\s+(checkout\s+-b|switch\s+-c|branch)\b", command):
+        branch_match = re.search(
+            r"(?:checkout\s+-b|switch\s+-c|branch)\s+(\S+)", command
+        )
+        if branch_match:
+            violations += gov.check_branch_name(branch_match.group(1))
+
+    if not violations:
+        sys.exit(0)
+
+    has_block = any(v["enforce"] == "hard-block" for v in violations)
+    verdict = Verdict.BLOCK if has_block else Verdict.WARN
+    gov.audit(
+        "bash-intercept",
+        {"command": command[:200], "violations": violations},
+        verdict,
+    )
+
+    if verdict == Verdict.BLOCK:
+        msgs = "\n".join(f"  ❌ {v['message']}" for v in violations if v["enforce"] == "hard-block")
+        print(f"🚫 Governor BLOCK:\n{msgs}", file=sys.stderr)
+        sys.exit(2)
+    else:
+        msgs = "\n".join(f"  ⚠️ {v['message']}" for v in violations)
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "additionalContext": f"⚠️ Governor waarschuwingen:\n{msgs}",
+            }
+        }))
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(
+            "Usage: governor.py <event> [--context JSON]\n"
+            "Events: commit, branch-create, session-start, status, bash-intercept",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    event = sys.argv[1]
+
+    if event == "bash-intercept":
+        gov = Governor()
+        _handle_bash_intercept(gov)
+        sys.exit(0)
+
+    # Only --context arg is supported; stdin is reserved for bash-intercept
+    context: dict = {}
+    if "--context" in sys.argv:
+        idx = sys.argv.index("--context")
+        context = json.loads(sys.argv[idx + 1])
+
+    gov = Governor()
+    result = gov.evaluate(event, context)
+    print(json.dumps(result, indent=2))
+
+    if result.get("verdict") == "block":
+        sys.exit(2)
+    sys.exit(0)

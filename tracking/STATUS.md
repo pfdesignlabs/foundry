@@ -2,7 +2,7 @@
 
 **Target:** 2026-03-01  
 **Started:** 2026-02-23  
-**Voortgang:** 6/10 work items done
+**Voortgang:** 7/10 work items done
 
 **Doel:** Foundry's fundament opzetten: package structuur, declaratieve governance (CLAUDE.md), en runtime enforcement via het .forge/ governor systeem (contracten, hooks, slice tracking).
 
@@ -162,19 +162,27 @@ Succesvol opgeleverd. slice.yaml is de enige bron van waarheid voor sprint track
 
 ---
 
-## ⬜ WI_0007 — /forge-status + /forge-plan skills (forward planning)
+## ✅ WI_0007 — /forge-status + /forge-plan skills (forward planning)
 
-**Status:** planned  
-**Branch:** `—`
+**Status:** done  
+**Branch:** `wi/WI_0007-forge-skills`
 
 **Beschrijving:**  
 Claude Code skills aanmaken als forward planning. /forge-status toont interactief dashboard vanuit slice.yaml. /forge-plan laat WI statussen updaten.
 
 **Acceptatiecriteria:**
 
-[ ] .claude/skills/forge-status/SKILL.md aanwezig
-[ ] .claude/skills/forge-plan/SKILL.md aanwezig
-[ ] Skills werken wanneer Claude Code skills ondersteund worden
+[x] .claude/skills/forge-status/SKILL.md aanwezig
+[x] .claude/skills/forge-plan/SKILL.md aanwezig
+[x] Skills werken wanneer Claude Code skills ondersteund worden
+
+**Evidence:**
+
+- `.claude/skills/forge-status/SKILL.md`
+- `.claude/skills/forge-plan/SKILL.md`
+
+**Uitkomst:**  
+Succesvol opgeleverd. forge-status toont volledig sprint dashboard (header, tabel, WI details, waarschuwingen) na governor status run. forge-plan ondersteunt alle status-transities inclusief terugzetten, vraagt outcome + evidence bij done, herberekent completed_this_slice automatisch.
 
 **Afhankelijkheden:** WI_0006
 
@@ -230,4 +238,4 @@ pytest unit tests voor governor.py (minimaal 15 cases): commit validatie, branch
 
 ---
 
-_Gegenereerd door governor op 2026-02-23 14:00 UTC_
+_Gegenereerd door governor op 2026-02-23 16:57 UTC_

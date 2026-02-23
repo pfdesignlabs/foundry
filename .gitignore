@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project databases (per-project, not committed)
+*.db
+*.db-shm
+*.db-wal
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Foundry governance (audit log is runtime state, not committed)
+.forge/audit.jsonl
+
+# uv lockfile artifacts
+uv.lock

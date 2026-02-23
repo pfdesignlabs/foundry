@@ -1,0 +1,25 @@
+[project]
+name = "foundry"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12",
+    "openai>=1.0",
+    "PyYAML>=6.0",
+    "ebooklib>=0.18",
+    "pypdf>=4.0",
+    "sqlite-vec>=0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "mypy>=1.8",
+]
+
+[project.scripts]
+foundry = "foundry.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

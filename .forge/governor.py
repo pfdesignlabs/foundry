@@ -3,6 +3,7 @@
 
 import json
 import re
+import subprocess
 import sys
 import yaml
 from datetime import datetime, timezone
@@ -341,18 +342,71 @@ def _handle_bash_intercept(gov: "Governor"):
                 })
                 break
 
-    # git merge → WARN on protected branches
+    # git merge → enforce merge-source-discipline
     elif re.search(r"\bgit\s+merge\b", command):
-        for branch in PROTECTED_BRANCHES:
-            if re.search(rf"\b{branch}\b", command):
-                violations.append({
-                    "contract": "merge-strategy",
-                    "rule": "no-direct-merge-protected",
-                    "enforce": "warn",
-                    "message": (
-                        f"Directe merge in '{branch}' — overweeg een PR."
-                    ),
-                })
+        # Extract source branch: last non-flag argument
+        merge_args = re.sub(r"^.*git\s+merge\s+", "", command).split()
+        source_branch = None
+        for arg in reversed(merge_args):
+            if not arg.startswith("-"):
+                source_branch = arg
+                break
+
+        # Get current branch via subprocess (fail-open on error)
+        current_branch: str | None = None
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, timeout=5,
+            )
+            current_branch = result.stdout.strip() or None
+        except Exception:
+            pass
+
+        if source_branch and current_branch:
+            if current_branch == "develop":
+                if not re.match(r"^(feat/.+|release/v\d+\.\d+\.\d+)$", source_branch):
+                    violations.append({
+                        "contract": "merge-strategy",
+                        "rule": "merge-source-discipline",
+                        "enforce": "hard-block",
+                        "message": (
+                            f"Merge naar 'develop' is alleen toegestaan vanuit feat/* of "
+                            f"release/* branches. Bron: '{source_branch}'"
+                        ),
+                    })
+            elif current_branch == "main":
+                if not re.match(r"^release/v\d+\.\d+\.\d+$", source_branch):
+                    violations.append({
+                        "contract": "merge-strategy",
+                        "rule": "merge-source-discipline",
+                        "enforce": "hard-block",
+                        "message": (
+                            f"Merge naar 'main' is alleen toegestaan vanuit release/* branches. "
+                            f"Bron: '{source_branch}'"
+                        ),
+                    })
+            elif re.match(r"^feat/.+$", current_branch):
+                if not re.match(r"^wi/WI_\d{4}-.+$", source_branch):
+                    violations.append({
+                        "contract": "merge-strategy",
+                        "rule": "merge-source-discipline",
+                        "enforce": "warn",
+                        "message": (
+                            f"Merge naar feat/* branch '{current_branch}' is aanbevolen "
+                            f"vanuit wi/* branches. Bron: '{source_branch}'"
+                        ),
+                    })
+        else:
+            # Fallback: warn when protected branch mentioned in command
+            for branch in PROTECTED_BRANCHES:
+                if re.search(rf"\b{branch}\b", command):
+                    violations.append({
+                        "contract": "merge-strategy",
+                        "rule": "no-direct-merge-protected",
+                        "enforce": "warn",
+                        "message": f"Directe merge in '{branch}' — overweeg een PR.",
+                    })
 
     # git commit → check message format + slice membership
     elif re.search(r"\bgit\s+commit\b", command):

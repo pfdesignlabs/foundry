@@ -160,6 +160,32 @@ Threshold is configureerbaar: hogere waarde = strikter filter, minder ruis maar 
 
 ---
 
+## D0009 — Merge-Bron Discipline als Hard-Block in Governor
+
+**Datum:** 2026-02-23
+**Status:** Accepted
+
+**Context:**
+D0003 documenteert de merge-hiërarchie `wi/* → feat/* → develop → main`, maar de governor
+handhaafde dit alleen op naam (branch-naming hard-block) en niet op merge-richting. Een
+`feat/f00-scaffold` branch werd te vroeg in `develop` gemerged terwijl de bijbehorende
+WIs (WI_0007–WI_0010) nog niet klaar waren. De hiërarchie was convention, niet enforcement.
+
+**Beslissing:**
+Governor breidt `_handle_bash_intercept` uit: bij `git merge` wordt de huidige branch
+opgehaald via subprocess (`git rev-parse --abbrev-ref HEAD`) en de brondiscipline gevalideerd:
+- `develop` accepteert alleen `feat/*` of `release/*` als bron — anders HARD-BLOCK
+- `main` accepteert alleen `release/vX.Y.Z` als bron — anders HARD-BLOCK
+- `feat/*` accepteert alleen `wi/*` als bron — anders WARN (niet hard-block)
+Als subprocess faalt: graceful fallback naar warn (fail-open).
+
+**Gevolg:**
+De merge-hiërarchie is nu runtime geënforced, niet alleen gedocumenteerd. De fout waarbij
+een feat-branch te vroeg werd gemerged kan niet meer stilzwijgend passeren binnen Claude Code.
+Directe git-aanroepen buiten Claude Code omzeilen de governor nog steeds (bewust fail-open).
+
+---
+
 ## D0008 — Global Document Summaries at Ingest (MiA-RAG + OmniThink)
 
 **Datum:** 2026-02-23

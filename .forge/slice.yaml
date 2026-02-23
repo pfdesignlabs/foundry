@@ -202,7 +202,31 @@ workitems:
     outcome: null
     evidence: []
 
+  - id: WI_0011
+    title: "Merge-source enforcement in governor.py"
+    status: done
+    branch: wi/WI_0011-merge-source-enforcement
+    description: >
+      Governor uitbreiden zodat de merge-hiërarchie (wi/* → feat/* → develop → main)
+      runtime gehandhaafd wordt. Bij git merge wordt de huidige branch opgehaald via
+      subprocess en gevalideerd: develop accepteert alleen feat/* of release/*,
+      main accepteert alleen release/*, feat/* accepteert alleen wi/* (warn).
+    acceptance_criteria:
+      - "[x] git merge wi/... op develop → hard-block"
+      - "[x] git merge feat/... op develop → allow"
+      - "[x] git merge feat/... op main → hard-block"
+      - "[x] git merge release/v... op main → allow"
+      - "[x] merge-source-discipline regel aanwezig in merge-strategy.yaml"
+      - "[x] D0009 vastgelegd in DECISIONS.md"
+    outcome: >
+      Succesvol opgeleverd. Governor haalt huidige branch op via subprocess (fail-open bij
+      fout). Alle merge-richting cases gevalideerd. Logic unit-getest: 8/8 cases correct.
+    evidence:
+      - .forge/governor.py
+      - .forge/contracts/merge-strategy.yaml
+      - tracking/decisions/DECISIONS.md
+
 metrics:
   velocity_target: 6
-  completed_this_slice: 7
+  completed_this_slice: 8
   carry_over_previous: 0

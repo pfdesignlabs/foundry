@@ -2,7 +2,7 @@
 
 **Target:** 2026-03-01  
 **Started:** 2026-02-23  
-**Voortgang:** 7/10 work items done
+**Voortgang:** 8/11 work items done
 
 **Doel:** Foundry's fundament opzetten: package structuur, declaratieve governance (CLAUDE.md), en runtime enforcement via het .forge/ governor systeem (contracten, hooks, slice tracking).
 
@@ -238,4 +238,32 @@ pytest unit tests voor governor.py (minimaal 15 cases): commit validatie, branch
 
 ---
 
-_Gegenereerd door governor op 2026-02-23 16:57 UTC_
+## ✅ WI_0011 — Merge-source enforcement in governor.py
+
+**Status:** done  
+**Branch:** `wi/WI_0011-merge-source-enforcement`
+
+**Beschrijving:**  
+Governor uitbreiden zodat de merge-hiërarchie (wi/* → feat/* → develop → main) runtime gehandhaafd wordt. Bij git merge wordt de huidige branch opgehaald via subprocess en gevalideerd: develop accepteert alleen feat/* of release/*, main accepteert alleen release/*, feat/* accepteert alleen wi/* (warn).
+
+**Acceptatiecriteria:**
+
+[x] git merge wi/... op develop → hard-block
+[x] git merge feat/... op develop → allow
+[x] git merge feat/... op main → hard-block
+[x] git merge release/v... op main → allow
+[x] merge-source-discipline regel aanwezig in merge-strategy.yaml
+[x] D0009 vastgelegd in DECISIONS.md
+
+**Evidence:**
+
+- `.forge/governor.py`
+- `.forge/contracts/merge-strategy.yaml`
+- `tracking/decisions/DECISIONS.md`
+
+**Uitkomst:**  
+Succesvol opgeleverd. Governor haalt huidige branch op via subprocess (fail-open bij fout). Alle merge-richting cases gevalideerd. Logic unit-getest: 8/8 cases correct.
+
+---
+
+_Gegenereerd door governor op 2026-02-23 17:24 UTC_

@@ -3,6 +3,7 @@
 
 import json
 import re
+import subprocess
 import sys
 import yaml
 from datetime import datetime, timezone
@@ -270,7 +271,10 @@ class Governor:
 
         elif event == "session-start":
             try:
+                status = self.slice_status()
+                self.write_status_md(status)
                 violations += self.check_active_limits()
+                return {**status, "event": "session-start", "violations": violations}
             except Exception as e:
                 violations.append({
                     "contract": "workitem-discipline",
@@ -278,6 +282,24 @@ class Governor:
                     "enforce": "hard-block",
                     "message": f"slice.yaml onleesbaar of corrupt: {e}",
                 })
+
+        elif event == "session-stop":
+            status = self.slice_status()
+            self.write_status_md(status)
+            remaining = [
+                wi["id"]
+                for wi in self.slice.get("workitems", [])
+                if wi.get("status") != "done"
+            ]
+            return {
+                "event": "session-stop",
+                "slice_id": status["slice_id"],
+                "slice_name": status["slice_name"],
+                "completed": status["completed"],
+                "total": status["total"],
+                "remaining": remaining,
+                "missing_evidence": status["missing_evidence"],
+            }
 
         elif event == "status":
             result = self.slice_status()
@@ -341,20 +363,73 @@ def _handle_bash_intercept(gov: "Governor"):
                 })
                 break
 
-    # git merge → WARN on protected branches
+    # git merge → enforce merge-source-discipline
     elif re.search(r"\bgit\s+merge\b", command):
-        for branch in PROTECTED_BRANCHES:
-            if re.search(rf"\b{branch}\b", command):
-                violations.append({
-                    "contract": "merge-strategy",
-                    "rule": "no-direct-merge-protected",
-                    "enforce": "warn",
-                    "message": (
-                        f"Directe merge in '{branch}' — overweeg een PR."
-                    ),
-                })
+        # Extract source branch: last non-flag argument
+        merge_args = re.sub(r"^.*git\s+merge\s+", "", command).split()
+        source_branch = None
+        for arg in reversed(merge_args):
+            if not arg.startswith("-"):
+                source_branch = arg
+                break
 
-    # git commit → check message format + slice membership
+        # Get current branch via subprocess (fail-open on error)
+        current_branch: str | None = None
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, timeout=5,
+            )
+            current_branch = result.stdout.strip() or None
+        except Exception:
+            pass
+
+        if source_branch and current_branch:
+            if current_branch == "develop":
+                if not re.match(r"^(feat/.+|release/v\d+\.\d+\.\d+)$", source_branch):
+                    violations.append({
+                        "contract": "merge-strategy",
+                        "rule": "merge-source-discipline",
+                        "enforce": "hard-block",
+                        "message": (
+                            f"Merge naar 'develop' is alleen toegestaan vanuit feat/* of "
+                            f"release/* branches. Bron: '{source_branch}'"
+                        ),
+                    })
+            elif current_branch == "main":
+                if not re.match(r"^release/v\d+\.\d+\.\d+$", source_branch):
+                    violations.append({
+                        "contract": "merge-strategy",
+                        "rule": "merge-source-discipline",
+                        "enforce": "hard-block",
+                        "message": (
+                            f"Merge naar 'main' is alleen toegestaan vanuit release/* branches. "
+                            f"Bron: '{source_branch}'"
+                        ),
+                    })
+            elif re.match(r"^feat/.+$", current_branch):
+                if not re.match(r"^wi/WI_\d{4}-.+$", source_branch):
+                    violations.append({
+                        "contract": "merge-strategy",
+                        "rule": "merge-source-discipline",
+                        "enforce": "warn",
+                        "message": (
+                            f"Merge naar feat/* branch '{current_branch}' is aanbevolen "
+                            f"vanuit wi/* branches. Bron: '{source_branch}'"
+                        ),
+                    })
+        else:
+            # Fallback: warn when protected branch mentioned in command
+            for branch in PROTECTED_BRANCHES:
+                if re.search(rf"\b{branch}\b", command):
+                    violations.append({
+                        "contract": "merge-strategy",
+                        "rule": "no-direct-merge-protected",
+                        "enforce": "warn",
+                        "message": f"Directe merge in '{branch}' — overweeg een PR.",
+                    })
+
+    # git commit → check message format + slice membership + pytest on staged .py files
     elif re.search(r"\bgit\s+commit\b", command):
         msg_match = re.search(r'-m\s+["\']([^"\']+)["\']', command)
         if msg_match:
@@ -363,6 +438,32 @@ def _handle_bash_intercept(gov: "Governor"):
             wi = gov._extract_workitem(msg)
             if wi:
                 violations += gov.check_work_in_slice(wi)
+
+        # Run pytest if staged .py files — fail-open, 60s timeout
+        try:
+            staged = subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                capture_output=True, text=True, timeout=5,
+            )
+            has_py = any(f.endswith(".py") for f in staged.stdout.splitlines() if f)
+            if has_py:
+                pytest_run = subprocess.run(
+                    ["python", "-m", "pytest", "--tb=short", "-q"],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if pytest_run.returncode != 0:
+                    output = (pytest_run.stdout + pytest_run.stderr).strip()
+                    violations.append({
+                        "contract": "testing",
+                        "rule": "pytest-on-commit",
+                        "enforce": "warn",
+                        "message": (
+                            f"pytest gefaald (fail-open — commit gaat door):\n"
+                            + "\n".join(output.splitlines()[-20:])
+                        ),
+                    })
+        except Exception:
+            pass  # fail-open: pytest errors blokkeren nooit een commit
 
     # git checkout -b / switch -c / branch → check branch naming
     elif re.search(r"\bgit\s+(checkout\s+-b|switch\s+-c|branch)\b", command):
@@ -414,6 +515,31 @@ if __name__ == "__main__":
         _handle_bash_intercept(gov)
         sys.exit(0)
 
+    if event == "audit-summary":
+        if not AUDIT_LOG.exists():
+            print("Geen audit log gevonden.", file=sys.stderr)
+            sys.exit(0)
+        lines = AUDIT_LOG.read_text().splitlines()
+        # Show last 20 entries
+        recent = lines[-20:]
+        entries = []
+        for line in recent:
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        icon = {Verdict.ALLOW.value: "✅", Verdict.WARN.value: "⚠️ ", Verdict.BLOCK.value: "❌"}
+        print(f"Audit trail — laatste {len(entries)} events:\n")
+        for e in entries:
+            ts = e.get("timestamp", "?")[:16].replace("T", " ")
+            verdict = e.get("verdict", "?")
+            event_name = e.get("event", "?")
+            marker = icon.get(verdict, "❓")
+            violations = e.get("violations", [])
+            msg = violations[0]["message"][:60] if violations else ""
+            print(f"  {marker} {ts}  {event_name:<20} {verdict:<8}  {msg}")
+        sys.exit(0)
+
     # Only --context arg is supported; stdin is reserved for bash-intercept
     context: dict = {}
     if "--context" in sys.argv:
@@ -422,6 +548,62 @@ if __name__ == "__main__":
 
     gov = Governor()
     result = gov.evaluate(event, context)
+
+    if event == "session-start":
+        violations = result.get("violations", [])
+        has_block = any(v["enforce"] == "hard-block" for v in violations)
+        completed = result.get("completed", "?")
+        total = result.get("total", "?")
+        slice_id = result.get("slice_id", "?")
+        slice_name = result.get("slice_name", "?")
+        target = result.get("target", "?")
+        missing = result.get("missing_evidence", [])
+
+        banner_lines = [
+            f"🔧 Foundry Governor — Sessie gestart",
+            f"Sprint {slice_id}: {slice_name}",
+            f"Voortgang: {completed}/{total} done | Target: {target}",
+        ]
+        if missing:
+            banner_lines.append(f"⚠️  Missing evidence: {', '.join(missing)}")
+        for v in violations:
+            prefix = "❌" if v["enforce"] == "hard-block" else "⚠️ "
+            banner_lines.append(f"{prefix} {v['message']}")
+
+        print("\n".join(banner_lines), file=sys.stderr)
+
+        # additionalContext for Claude
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "\n".join(banner_lines),
+            }
+        }))
+
+        if has_block:
+            sys.exit(2)
+        sys.exit(0)
+
+    if event == "session-stop":
+        completed = result.get("completed", "?")
+        total = result.get("total", "?")
+        slice_id = result.get("slice_id", "?")
+        remaining = result.get("remaining", [])
+        missing = result.get("missing_evidence", [])
+
+        lines = [
+            f"🏁 Foundry Governor — Sessie afgesloten",
+            f"Sprint {slice_id}: {completed}/{total} done",
+        ]
+        if remaining:
+            lines.append(f"Nog open: {', '.join(remaining)}")
+        if missing:
+            lines.append(f"⚠️  Missing evidence: {', '.join(missing)}")
+        lines.append("STATUS.md bijgewerkt.")
+
+        print("\n".join(lines), file=sys.stderr)
+        sys.exit(0)
+
     print(json.dumps(result, indent=2))
 
     if result.get("verdict") == "block":

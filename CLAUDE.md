@@ -45,11 +45,12 @@ Locked decisions. Deviations require an ADR in `tracking/decisions/`.
 | Language | Python 3.11+ |
 | Packaging | `pyproject.toml` + `uv` |
 | Vector DB | `sqlite-vec` |
-| Embeddings | OpenAI `text-embedding-3-small` |
-| LLM | OpenAI `gpt-4o` |
-| CLI | `typer` |
+| LLM / Embeddings | `litellm` (unified interface — `provider/model` format) |
+| Default LLM | `openai/gpt-4o` |
+| Default Embedding | `openai/text-embedding-3-small` |
+| CLI | `typer` + `rich` |
 | PDF parsing | `pypdf` |
-| EPUB parsing | `ebooklib` |
+| EPUB parsing | `beautifulsoup4` + `html2text` (MIT — geen AGPL) |
 | Testing | `pytest` |
 
 ---
@@ -121,6 +122,10 @@ Current phase and allowed outputs are always in `.forge/slice.yaml`.
 - No commits without `[WI_XXXX]`, `[FEATURE_TRACKING]`, or `[DEV_GOVERNANCE]` prefix.
 - No direct commits or merges to `main` or `develop`.
 - If a required decision is missing: STOP and record in `tracking/decisions/DECISIONS.md`.
+- **Always `yaml.safe_load()` — never `yaml.load()` without Loader (RCE vector).**
+- **Never `shell=True` with user-supplied input — always `shell=False` + list args.**
+- **Never store API keys in config files — keys via environment variables only.**
+- **Always validate and confine file paths before opening (path traversal prevention).**
 
 ---
 
@@ -129,7 +134,9 @@ Current phase and allowed outputs are always in `.forge/slice.yaml`.
 ```bash
 uv venv && source .venv/bin/activate
 uv sync
-pytest                              # run tests
+uv lock                             # pin transitive deps (commit uv.lock)
+pytest                              # run tests (e2e excluded by default)
+pytest -m e2e                       # run e2e tests (requires API keys)
 ruff check src/                     # lint
 mypy src/foundry/                   # type check
 python .forge/governor.py status    # sprint status
@@ -139,9 +146,32 @@ python .forge/governor.py status    # sprint status
 
 ## Testing & Code Review Policy
 
-**Testing:**
+**Test pyramid:**
+```
+tests/
+  conftest.py           ← mock_litellm fixture, tmp_db fixture
+  unit/
+    db/                 ← test_repository.py, test_migrations.py
+    ingest/             ← test_chunkers.py (parametrized), test_embedding_writer.py
+    rag/                ← test_retriever.py, test_context_assembler.py
+    cli/                ← test_commands.py (Typer CliRunner)
+    test_config.py
+    test_path_validation.py
+  integration/          ← mocked LLM, real SQLite :memory:
+    test_ingest_pipeline.py
+    test_generate_pipeline.py
+    test_deduplication.py
+    test_recovery.py
+  e2e/                  ← @pytest.mark.e2e, skipped unless FOUNDRY_RUN_E2E=1
+    test_full_pipeline.py
+```
+
+**Testing rules:**
 - All new code requires tests in `tests/` (mirrors `src/` structure)
-- `pytest` must pass before any merge to `feat/*` or `develop`
+- Unit tests: no real I/O, no real LLM calls — mock via `conftest.mock_litellm`
+- Integration tests: mocked LiteLLM, real SQLite `:memory:` database
+- E2E tests: `@pytest.mark.e2e` — require real API keys, skipped by default
+- `pytest` (without `-m e2e`) must pass before any merge to `feat/*` or `develop`
 - Coverage target: ≥60% now, ≥80% from Phase 3 onward
 - Bug fixes include a regression test
 

@@ -208,3 +208,141 @@ Config: `ingest.summary_model` (default gpt-4o-mini), `ingest.summary_max_tokens
 Extra LLM-call per bron bij ingest (eenmalig, goedkoop model). System prompt wordt groter
 bij veel bronnen — token budget voor chunks licht verlaagd. Betere coherentie en
 contextualisering van de gegenereerde output.
+
+---
+
+## D0010 — Multi-model Support: LiteLLM + Per-model Vec Tables
+
+**Datum:** 2026-02-23
+**Status:** Accepted
+
+**Context:**
+Foundry werd initieel ontworpen met OpenAI als enige provider (gpt-4o, text-embedding-3-small).
+Gebruikers willen kunnen experimenteren: zelfde bronnen ingesteren met meerdere embedding
+modellen om retrieval-kwaliteit te vergelijken. Ook LLM-provider-onafhankelijkheid is
+gewenst (OpenAI, Anthropic, lokale modellen via Ollama).
+
+**Beslissing:**
+1. LiteLLM als unified interface voor alle LLM calls (`litellm.completion()`) én
+   embedding calls (`litellm.embedding()`). Provider/model gespecificeerd als één string:
+   `openai/gpt-4o`, `anthropic/claude-sonnet-4-6`, `ollama/llama3`.
+2. Per embedding model een aparte sqlite-vec virtual table:
+   `vec_chunks_{model_slug}` (bijv. `vec_chunks_openai_text_embedding_3_small`).
+   Meerdere vec tables kunnen naast elkaar bestaan in dezelfde database.
+3. Vec tables zijn model-managed (niet migration-managed): aangemaakt on-demand door
+   `Repository.ensure_vec_table(model_slug, dimensions)` bij eerste ingest met dat model.
+4. HyDE embedding gebruikt altijd `embedding.model` — geen apart config veld.
+   Token counting via `litellm.token_counter()` — provider-aware (geen tiktoken direct).
+
+**Gevolg:**
+Gebruikers kunnen experimenteren met meerdere embedding modellen op dezelfde corpus.
+LiteLLM voegt één extra dependency toe (~5MB, lazy imports). Provider-switch vereist
+nieuwe ingest — bestaande vec tables voor het oude model blijven intact.
+API keys uitsluitend via environment variables, nooit in config files.
+
+---
+
+## D0011 — Per-project features/ Scaffold via foundry init
+
+**Datum:** 2026-02-23
+**Status:** Accepted
+
+**Context:**
+F04-FEATURE-GATES vereist een `features/` directory met door mensen goedgekeurde specs
+als hard gate voor generatie. De spec vermeldde "door de gebruiker aangemaakt" maar dit
+is onnodige handmatige stap die de onboarding verslechtert.
+
+**Beslissing:**
+`foundry init` maakt de volledige project scaffold aan als interactieve wizard:
+`.foundry.db`, `foundry.yaml` (met wizard-keuzes), en een lege `features/` directory.
+De gate in F04 blijft ongewijzigd — geen goedgekeurde spec = geen generatie.
+De directory wordt aangemaakt door init, gevuld door de gebruiker.
+
+**Gevolg:**
+Lagere drempel voor nieuwe projecten. Geen apart "maak features/ aan" instructie nodig
+in documentatie. De wizard begeleidt de gebruiker bij de initiële configuratie.
+
+---
+
+## D0012 — Ingest Recovery: Fresh Restart bij Onderbreking
+
+**Datum:** 2026-02-23
+**Status:** Accepted
+
+**Context:**
+Ingest kan onderbroken worden (crash, CTRL+C) na gedeeltelijke verwerking. Een partieel
+geïngesteerde bron in de database leidt tot inconsistente retrieval: sommige chunks
+aanwezig, andere niet, embeddings mogelijk incompleet.
+
+**Beslissing:**
+Bij herstart van ingest voor een bron die al (gedeeltelijk) in de database staat:
+verwijder alle bestaande chunks + source_summaries voor die source_id en begin opnieuw.
+Geen checkpointing, geen resume. Gecombineerd met content_hash deduplicatie zijn
+ongewijzigde bronnen bij herstart snel (hash match → skip, geen re-ingest).
+
+**Gevolg:**
+Eenvoudige, correcte staat gegarandeerd. Kleine penalty bij herstart van grote bronnen.
+Geen implementatiecomplexiteit voor checkpointing. Trade-off expliciet geaccepteerd.
+
+---
+
+## D0013 — sqlite-vec Rowid als Primaire Vec Lookup Key
+
+**Datum:** 2026-02-23
+**Status:** Accepted
+
+**Context:**
+sqlite-vec virtual tables gebruiken SQLite's integer rowid als lookup key. De `chunks`
+tabel had UUID als PK in het initiële ontwerp. Dit creëert een impedance mismatch:
+vec results retourneren een integer rowid, maar chunk lookups verwachtten een UUID.
+Dit leidt tot stille bugs als de repository `WHERE id = ?` (UUID) gebruikt i.p.v.
+`WHERE rowid = ?` (integer).
+
+**Beslissing:**
+`chunks` tabel gebruikt SQLite's impliciete integer rowid als primaire lookup key voor
+alle vec- en FTS5-operaties. De `id` UUID kolom wordt verwijderd uit chunks — niet nodig
+omdat chunks altijd via hun source worden geïdentificeerd (source_id + chunk_index).
+`sources` tabel behoudt UUID als PK (extern-facing identifier).
+Repository laag gebruikt altijd `WHERE c.rowid = vec_result.rowid` voor vec lookups.
+
+**Gevolg:**
+Geen impedance mismatch. Vec en FTS5 lookups zijn native integer rowid operaties.
+Chunks zijn intern geïdentificeerd via (source_id, chunk_index) — geen UUID nodig.
+
+---
+
+## D0014 — Dual-Beneficiary Model: Operator vs. Klant
+
+**Datum:** 2026-02-24
+**Status:** Accepted
+
+**Context:**
+Foundry werd ontworpen als kennistool voor de operator (de gebruiker van Foundry zelf).
+Bij gebruik voor klantprojecten (bijv. custom hardware, firmware documentatie) zijn er
+echter twee begunstigden: de operator die het project beheert én de klant die de output
+ontvangt. Feature specs beschrijven projecttaken (PCB layout, firmware architectuur,
+assembly-procedure) — niet alleen kennisvraagtukken. Sommige gegenereerde outputs zijn
+intern, sommige gaan naar de klant.
+
+**Beslissing:**
+Foundry bedient expliciet twee lagen:
+1. **Operator-laag (intern):** ingest, feature specs aanmaken, tracken via `tracking/`,
+   audittrail, sprint management. Niet zichtbaar voor de klant.
+2. **Klant-laag (extern):** `foundry build` assembleert goedgekeurde feature-outputs
+   in volgorde gedefinieerd in `delivery:` sectie van `foundry.yaml`. Output is één
+   geconsolideerd `.md` document als klant-deliverable.
+
+Feature specs zijn de eenheid van documentatie per projecttaak. De `delivery:` config
+bepaalt welke specs in de klantlevering gaan (en in welke volgorde). Sommige intern
+gegenereerde content (bijv. beslissingenlog) kan via `delivery.sections` in de
+klantlevering opgenomen worden — dit is een per-project keuze.
+
+`foundry init` maakt `tracking/` aan met templates voor operator-gebruik:
+`sources.md` (te ingesteren bronnen), `work-items.md` (projecttaken), `build-plan.md`
+(companion bij de `delivery:` config).
+
+**Gevolg:**
+Duidelijke scheiding tussen interne workflow en klantoutput. `foundry build` is de
+samenstellende stap die de klantlevering produceert. Feature specs kunnen zowel intern
+als extern zijn — de `delivery:` config bepaalt dit. Geen aparte "klantmodus" nodig;
+de architectuur ondersteunt beide gebruikspatronen via dezelfde primitieven.

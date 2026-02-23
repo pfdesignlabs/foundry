@@ -85,7 +85,8 @@ class Governor:
     def check_work_in_slice(self, workitem_id: str) -> list[dict]:
         violations = []
         slice_data = self.slice.get("slice", {})
-        known_ids = [wi["id"] for wi in slice_data.get("workitems", [])]
+        # workitems are at root level of slice.yaml, not nested under slice:
+        known_ids = [wi["id"] for wi in self.slice.get("workitems", [])]
         if workitem_id and workitem_id not in known_ids:
             violations.append({
                 "contract": "workitem-discipline",
@@ -100,9 +101,9 @@ class Governor:
 
     def check_active_limits(self) -> list[dict]:
         violations = []
-        slice_data = self.slice.get("slice", {})
+        # workitems are at root level of slice.yaml
         active = [
-            wi for wi in slice_data.get("workitems", [])
+            wi for wi in self.slice.get("workitems", [])
             if wi.get("status") == "in_progress"
         ]
         if len(active) > 2:
@@ -119,7 +120,8 @@ class Governor:
 
     def slice_status(self) -> dict:
         slice_data = self.slice.get("slice", {})
-        workitems = slice_data.get("workitems", [])
+        # workitems are at root level of slice.yaml
+        workitems = self.slice.get("workitems", [])
         by_status: dict[str, list] = defaultdict(list)
         for wi in workitems:
             by_status[wi.get("status", "unknown")].append(wi["id"])
@@ -128,10 +130,11 @@ class Governor:
             if wi.get("status") in ("in_progress", "done")
             and not wi.get("evidence")
         ]
+        target = slice_data.get("target")
         return {
             "slice_id": slice_data.get("id"),
             "slice_name": slice_data.get("name"),
-            "target": slice_data.get("target"),
+            "target": str(target) if target is not None else None,
             "by_status": dict(by_status),
             "total": len(workitems),
             "completed": len(by_status.get("done", [])),

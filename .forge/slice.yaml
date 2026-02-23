@@ -1,0 +1,86 @@
+slice:
+  id: SP_001
+  name: "Scaffold, CLAUDE.md & DEV_GOVERNANCE"
+  started: 2026-02-23
+  target: 2026-03-01
+  goal: >
+    Foundry's fundament opzetten: package structuur, declaratieve governance (CLAUDE.md),
+    en runtime enforcement via het .forge/ governor systeem (contracten, hooks, slice tracking).
+
+workitems:
+  - id: WI_0001
+    title: "Scaffold: pyproject.toml, package skeleton, tracking/, DECISIONS.md"
+    status: done
+    branch: wi/WI_0001-scaffold
+    evidence:
+      - pyproject.toml
+      - src/foundry/__init__.py
+      - tracking/features/F00-SCAFFOLD.md
+      - tracking/decisions/DECISIONS.md
+
+  - id: WI_0002
+    title: "CLAUDE.md met architectuur non-negotiables en fase structuur"
+    status: done
+    branch: wi/WI_0002-claude-md
+    evidence:
+      - CLAUDE.md
+
+  - id: WI_0003
+    title: "governor.py: bash-intercept, session-start, commit, branch-create, status"
+    status: done
+    branch: wi/WI_0003-governor-core
+    evidence:
+      - .forge/governor.py
+
+  - id: WI_0004
+    title: "Contracten: merge-strategy.yaml + commit-discipline.yaml"
+    status: done
+    branch: wi/WI_0004-contracts
+    evidence:
+      - .forge/contracts/merge-strategy.yaml
+      - .forge/contracts/commit-discipline.yaml
+
+  - id: WI_0005
+    title: "pre-bash.sh hook + .claude/settings.json"
+    status: done
+    branch: wi/WI_0005-hooks
+    evidence:
+      - .forge/hooks/pre-bash.sh
+      - .claude/settings.json
+
+  - id: WI_0006
+    title: "slice.yaml (SP_001) + workitem-discipline.yaml contract"
+    status: in_progress
+    branch: wi/WI_0006-slice-tracker
+    evidence: []
+
+  - id: WI_0007
+    title: "/forge-status + /forge-plan skills (forward planning)"
+    status: planned
+    branch: null
+    evidence: []
+    depends_on: [WI_0006]
+
+  - id: WI_0008
+    title: "SessionStart + Stop hooks"
+    status: planned
+    branch: null
+    evidence: []
+    depends_on: [WI_0005, WI_0006]
+
+  - id: WI_0009
+    title: "Testing contract + pre-commit test check"
+    status: planned
+    branch: null
+    evidence: []
+
+  - id: WI_0010
+    title: "Governor unit tests + audit-summary command"
+    status: planned
+    branch: null
+    evidence: []
+
+metrics:
+  velocity_target: 6
+  completed_this_slice: 5
+  carry_over_previous: 0

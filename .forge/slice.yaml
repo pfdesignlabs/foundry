@@ -12,6 +12,19 @@ workitems:
     title: "Scaffold: pyproject.toml, package skeleton, tracking/, DECISIONS.md"
     status: done
     branch: wi/WI_0001-scaffold
+    description: >
+      pyproject.toml aanmaken met alle project dependencies (typer, openai, PyYAML, ebooklib,
+      pypdf, sqlite-vec). Package skeleton opzetten onder src/foundry/. Tracking directory
+      aanmaken met feature specs (F00-F05) en initial decisions log.
+    acceptance_criteria:
+      - "[x] pyproject.toml aanwezig met alle afhankelijkheden"
+      - "[x] src/foundry/__init__.py aanwezig"
+      - "[x] tracking/features/ bevat F00-F05.md feature specs"
+      - "[x] tracking/decisions/DECISIONS.md bevat D0001 (RAG), D0002 (sqlite-vec), D0003 (branches)"
+      - "[x] .gitignore bijgewerkt met .forge/audit.jsonl"
+    outcome: >
+      Succesvol opgeleverd. Package structuur aangemaakt, alle 6 feature files beschreven,
+      3 architectuurbeslissingen gedocumenteerd (RAG, sqlite-vec, branch hierarchy).
     evidence:
       - pyproject.toml
       - src/foundry/__init__.py
@@ -22,6 +35,19 @@ workitems:
     title: "CLAUDE.md met architectuur non-negotiables en fase structuur"
     status: done
     branch: wi/WI_0002-claude-md
+    description: >
+      CLAUDE.md aanmaken in de repo root als declaratieve governance laag. Bevat:
+      architectuur non-negotiables (6 locked decisions), tech stack, repo map,
+      branch strategy, fase structuur, sessie discipline, hard rules, en bootstrap sectie.
+    acceptance_criteria:
+      - "[x] CLAUDE.md aanwezig met alle 6 architectuur non-negotiables"
+      - "[x] Bootstrap sectie aanwezig voor eerste sessie zonder slice.yaml"
+      - "[x] Verwijzing naar .forge/slice.yaml als actieve slice bron"
+      - "[x] Branch hierarchy gedocumenteerd (wi/* → feat/* → develop → main)"
+      - "[x] Fase structuur (0-5) gedocumenteerd"
+    outcome: >
+      Succesvol opgeleverd. CLAUDE.md beschrijft volledig de governance structuur,
+      architectuurkeuzes zijn als wet vastgelegd, bootstrap protocol aanwezig.
     evidence:
       - CLAUDE.md
 
@@ -29,6 +55,24 @@ workitems:
     title: "governor.py: bash-intercept, session-start, commit, branch-create, status"
     status: done
     branch: wi/WI_0003-governor-core
+    description: >
+      Governor engine implementeren die runtime enforcement uitvoert. Events:
+      bash-intercept (intercepteert git commands via Claude Code hook),
+      session-start (controleert slice health bij sessie start),
+      commit (valideert commit message format),
+      branch-create (valideert branch naming — hard-block),
+      status (genereert slice overzicht + STATUS.md).
+    acceptance_criteria:
+      - "[x] git push origin main → exit 2 (hard-block)"
+      - "[x] git commit -m 'fix stuff' → verdict: warn"
+      - "[x] git checkout -b random-name → verdict: block (exit 2)"
+      - "[x] git checkout -b wi/WI_0001-slug → verdict: allow"
+      - "[x] python .forge/governor.py status → JSON output zonder hangs"
+      - "[x] STATUS.md wordt aangemaakt na status event"
+    outcome: >
+      Succesvol opgeleverd. Governor werkt correct voor alle events. Datetime deprecation
+      warning gefixed (utcnow → now(timezone.utc)). bash-intercept leest geen stdin
+      voor niet-intercept events (blokkeerprobleem opgelost).
     evidence:
       - .forge/governor.py
 
@@ -36,6 +80,17 @@ workitems:
     title: "Contracten: merge-strategy.yaml + commit-discipline.yaml"
     status: done
     branch: wi/WI_0004-contracts
+    description: >
+      YAML contracten aanmaken die de governance regels declaratief vastleggen.
+      merge-strategy.yaml: branch naming (hard-block), protected branch push/merge regels.
+      commit-discipline.yaml: commit message format validatie (warn).
+    acceptance_criteria:
+      - "[x] merge-strategy.yaml aanwezig met branch-naming rule (hard-block)"
+      - "[x] commit-discipline.yaml aanwezig met commit format rule (warn)"
+      - "[x] Contracten worden geladen door governor._load_contracts()"
+    outcome: >
+      Succesvol opgeleverd. Twee contracten aangemaakt. Branch naming is hard-block,
+      commit discipline is warn (informerend). Contracten zijn machine-readable YAML.
     evidence:
       - .forge/contracts/merge-strategy.yaml
       - .forge/contracts/commit-discipline.yaml
@@ -44,20 +99,56 @@ workitems:
     title: "pre-bash.sh hook + .claude/settings.json"
     status: done
     branch: wi/WI_0005-hooks
+    description: >
+      Claude Code hook opzetten die alle Bash tool-calls onderschept en doorstuur naar
+      de governor. pre-bash.sh is één regel (exec python .forge/governor.py bash-intercept).
+      settings.json registreert de hook voor PreToolUse + SessionStart events.
+    acceptance_criteria:
+      - "[x] pre-bash.sh is executable (chmod +x)"
+      - "[x] echo '{\"tool_input\":{\"command\":\"git push origin main\"}}' | .forge/hooks/pre-bash.sh → exit 2"
+      - "[x] .claude/settings.json bevat PreToolUse + SessionStart hooks"
+      - "[x] settings.json is gecommit naar repo (governance geldt voor iedereen)"
+    outcome: >
+      Succesvol opgeleverd. Hook is één regel, geen bash JSON parsing, geen jq dependency.
+      Governor doet alle zware verwerking. settings.json gecommit als onderdeel van repo governance.
     evidence:
       - .forge/hooks/pre-bash.sh
       - .claude/settings.json
 
   - id: WI_0006
     title: "slice.yaml (SP_001) + workitem-discipline.yaml contract"
-    status: in_progress
+    status: done
     branch: wi/WI_0006-slice-tracker
-    evidence: []
+    description: >
+      .forge/slice.yaml aanmaken als machine-readable sprint tracker voor SP_001.
+      Bevat alle 10 work items met status, branch, evidence, beschrijving en acceptatiecriteria.
+      workitem-discipline.yaml contract aanmaken voor WIP limits en slice membership checks.
+      STATUS.md generatie verrijkt met volledige WI history.
+    acceptance_criteria:
+      - "[x] .forge/slice.yaml aanwezig met alle 10 WIs voor SP_001"
+      - "[x] python .forge/governor.py status toont 5/10 done"
+      - "[x] tracking/STATUS.md bevat volledige WI beschrijvingen, criteria en uitkomsten"
+      - "[x] workitem-discipline.yaml contract aanwezig"
+    outcome: >
+      Succesvol opgeleverd. slice.yaml is de enige bron van waarheid voor sprint tracking.
+      STATUS.md bevat nu volledige sprint history inclusief beschrijvingen, criteria, uitkomsten.
+    evidence:
+      - .forge/slice.yaml
+      - .forge/contracts/workitem-discipline.yaml
+      - tracking/STATUS.md
 
   - id: WI_0007
     title: "/forge-status + /forge-plan skills (forward planning)"
     status: planned
     branch: null
+    description: >
+      Claude Code skills aanmaken als forward planning. /forge-status toont interactief
+      dashboard vanuit slice.yaml. /forge-plan laat WI statussen updaten.
+    acceptance_criteria:
+      - "[ ] .claude/skills/forge-status/SKILL.md aanwezig"
+      - "[ ] .claude/skills/forge-plan/SKILL.md aanwezig"
+      - "[ ] Skills werken wanneer Claude Code skills ondersteund worden"
+    outcome: null
     evidence: []
     depends_on: [WI_0006]
 
@@ -65,6 +156,14 @@ workitems:
     title: "SessionStart + Stop hooks"
     status: planned
     branch: null
+    description: >
+      SessionStart hook geeft slice status bij sessie start (BLOCK bij corrupt slice.yaml,
+      WARN voor rest). Stop hook toont sprint samenvatting aan einde van sessie.
+    acceptance_criteria:
+      - "[ ] SessionStart hook geeft sprint status bij sessie start"
+      - "[ ] Corrupt slice.yaml → exit 2 (sessie geblokkeerd)"
+      - "[ ] Stop hook genereert session summary"
+    outcome: null
     evidence: []
     depends_on: [WI_0005, WI_0006]
 
@@ -72,15 +171,32 @@ workitems:
     title: "Testing contract + pre-commit test check"
     status: planned
     branch: null
+    description: >
+      testing.yaml contract aanmaken. pre-bash.sh uitbreiden: bij git commit met
+      gewijzigde .py bestanden → run pytest --tb=short -q → WARN als falend (fail-open, 60s timeout).
+    acceptance_criteria:
+      - "[ ] .forge/contracts/testing.yaml aanwezig"
+      - "[ ] git commit met staged .py bestanden triggert pytest run"
+      - "[ ] Falende tests geven WARN (niet BLOCK) — fail-open"
+    outcome: null
     evidence: []
 
   - id: WI_0010
     title: "Governor unit tests + audit-summary command"
     status: planned
     branch: null
+    description: >
+      pytest unit tests voor governor.py (minimaal 15 cases): commit validatie,
+      branch naming, slice membership, WIP limits, verdict prioriteit, graceful
+      handling van ontbrekende contracten/slice. Audit-summary subcommand toevoegen.
+    acceptance_criteria:
+      - "[ ] tests/test_governor.py aanwezig met ≥15 test cases"
+      - "[ ] pytest slaagt groen"
+      - "[ ] python .forge/governor.py audit-summary toont recent audit trail"
+    outcome: null
     evidence: []
 
 metrics:
   velocity_target: 6
-  completed_this_slice: 5
+  completed_this_slice: 6
   carry_over_previous: 0

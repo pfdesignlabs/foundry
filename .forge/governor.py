@@ -143,29 +143,78 @@ class Governor:
         }
 
     def write_status_md(self, status: dict):
-        """Write human-readable STATUS.md to tracking/."""
+        """Write comprehensive sprint STATUS.md with full WI history to tracking/."""
         icon = {"done": "✅", "in_progress": "🔄", "planned": "⬜", "blocked": "❌"}
+        slice_data = self.slice.get("slice", {})
+        workitems = self.slice.get("workitems", [])
+
         lines = [
             f"# Sprint {status['slice_id']} — {status['slice_name']}",
             "",
             f"**Target:** {status['target']}  ",
+            f"**Started:** {slice_data.get('started', '?')}  ",
             f"**Voortgang:** {status['completed']}/{status['total']} work items done",
             "",
-            "## Work Items",
         ]
-        for s, ids in sorted(status["by_status"].items()):
-            for wi_id in ids:
-                lines.append(f"- {icon.get(s, '❓')} `{wi_id}` ({s})")
-        if status["missing_evidence"]:
-            lines += ["", "## ⚠️ Ontbrekende evidence"]
-            for wi_id in status["missing_evidence"]:
-                lines.append(f"- `{wi_id}`")
+
+        goal = slice_data.get("goal", "").strip()
+        if goal:
+            lines += [f"**Doel:** {goal}", ""]
+
         if status["warnings"]:
-            lines += ["", "## ⚠️ Waarschuwingen"]
+            lines += ["## ⚠️ Waarschuwingen", ""]
             for w in status["warnings"]:
                 lines.append(f"- {w['message']}")
+            lines.append("")
+
+        lines.append("---")
+        lines.append("")
+
+        # Full WI history — one section per work item
+        for wi in workitems:
+            wi_id = wi["id"]
+            wi_status = wi.get("status", "unknown")
+            wi_icon = icon.get(wi_status, "❓")
+            branch = wi.get("branch") or "—"
+
+            lines += [
+                f"## {wi_icon} {wi_id} — {wi['title']}",
+                "",
+                f"**Status:** {wi_status}  ",
+                f"**Branch:** `{branch}`",
+                "",
+            ]
+
+            desc = (wi.get("description") or "").strip()
+            if desc:
+                lines += ["**Beschrijving:**  ", desc, ""]
+
+            criteria = wi.get("acceptance_criteria") or []
+            if criteria:
+                lines += ["**Acceptatiecriteria:**", ""]
+                for c in criteria:
+                    lines.append(f"{c}")
+                lines.append("")
+
+            evidence = wi.get("evidence") or []
+            if evidence:
+                lines += ["**Evidence:**", ""]
+                for e in evidence:
+                    lines.append(f"- `{e}`")
+                lines.append("")
+
+            outcome = (wi.get("outcome") or "").strip()
+            if outcome:
+                lines += ["**Uitkomst:**  ", outcome, ""]
+
+            depends_on = wi.get("depends_on") or []
+            if depends_on:
+                lines += [f"**Afhankelijkheden:** {', '.join(depends_on)}", ""]
+
+            lines.append("---")
+            lines.append("")
+
         lines += [
-            "",
             f"_Gegenereerd door governor op "
             f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC_",
         ]

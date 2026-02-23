@@ -5,7 +5,7 @@ import json
 import re
 import sys
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from enum import Enum
 from collections import defaultdict
@@ -164,14 +164,14 @@ class Governor:
         lines += [
             "",
             f"_Gegenereerd door governor op "
-            f"{datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC_",
+            f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC_",
         ]
         STATUS_MD.parent.mkdir(parents=True, exist_ok=True)
         STATUS_MD.write_text("\n".join(lines) + "\n")
 
     def audit(self, event: str, details: dict, verdict: Verdict):
         entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "event": event,
             "verdict": verdict.value,
             **details,

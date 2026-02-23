@@ -16,7 +16,16 @@ rules:
 
   - id: no-direct-merge-protected
     enforce: warn
-    description: "Directe merge naar main/develop — overweeg een PR"
+    description: "Directe merge naar main/develop — overweeg een PR (fallback als bron niet bepaald kan worden)"
+
+  - id: merge-source-discipline
+    enforce: hard-block
+    description: >
+      Merge-bron moet overeenkomen met de hiërarchie:
+        develop  ← alleen feat/* of release/*
+        main     ← alleen release/vX.Y.Z
+        feat/*   ← alleen wi/* (warn, niet hard-block)
+      Fallback naar warn als huidige branch niet bepaald kan worden.
 
   - id: branch-naming
     enforce: hard-block

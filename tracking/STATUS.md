@@ -2,7 +2,7 @@
 
 **Target:** 2026-03-01  
 **Started:** 2026-02-23  
-**Voortgang:** 6/10 work items done
+**Voortgang:** 11/11 work items done
 
 **Doel:** Foundry's fundament opzetten: package structuur, declaratieve governance (CLAUDE.md), en runtime enforcement via het .forge/ governor systeem (contracten, hooks, slice tracking).
 
@@ -162,72 +162,132 @@ Succesvol opgeleverd. slice.yaml is de enige bron van waarheid voor sprint track
 
 ---
 
-## ⬜ WI_0007 — /forge-status + /forge-plan skills (forward planning)
+## ✅ WI_0007 — /forge-status + /forge-plan skills (forward planning)
 
-**Status:** planned  
-**Branch:** `—`
+**Status:** done  
+**Branch:** `wi/WI_0007-forge-skills`
 
 **Beschrijving:**  
 Claude Code skills aanmaken als forward planning. /forge-status toont interactief dashboard vanuit slice.yaml. /forge-plan laat WI statussen updaten.
 
 **Acceptatiecriteria:**
 
-[ ] .claude/skills/forge-status/SKILL.md aanwezig
-[ ] .claude/skills/forge-plan/SKILL.md aanwezig
-[ ] Skills werken wanneer Claude Code skills ondersteund worden
+[x] .claude/skills/forge-status/SKILL.md aanwezig
+[x] .claude/skills/forge-plan/SKILL.md aanwezig
+[x] Skills werken wanneer Claude Code skills ondersteund worden
+
+**Evidence:**
+
+- `.claude/skills/forge-status/SKILL.md`
+- `.claude/skills/forge-plan/SKILL.md`
+
+**Uitkomst:**  
+Succesvol opgeleverd. forge-status toont volledig sprint dashboard (header, tabel, WI details, waarschuwingen) na governor status run. forge-plan ondersteunt alle status-transities inclusief terugzetten, vraagt outcome + evidence bij done, herberekent completed_this_slice automatisch.
 
 **Afhankelijkheden:** WI_0006
 
 ---
 
-## ⬜ WI_0008 — SessionStart + Stop hooks
+## ✅ WI_0008 — SessionStart + Stop hooks
 
-**Status:** planned  
-**Branch:** `—`
+**Status:** done  
+**Branch:** `wi/WI_0008-session-hooks`
 
 **Beschrijving:**  
 SessionStart hook geeft slice status bij sessie start (BLOCK bij corrupt slice.yaml, WARN voor rest). Stop hook toont sprint samenvatting aan einde van sessie.
 
 **Acceptatiecriteria:**
 
-[ ] SessionStart hook geeft sprint status bij sessie start
-[ ] Corrupt slice.yaml → exit 2 (sessie geblokkeerd)
-[ ] Stop hook genereert session summary
+[x] SessionStart hook geeft sprint status bij sessie start
+[x] Corrupt slice.yaml → exit 2 (sessie geblokkeerd)
+[x] Stop hook genereert session summary
+
+**Evidence:**
+
+- `.forge/governor.py`
+- `.claude/settings.json`
+
+**Uitkomst:**  
+Succesvol opgeleverd. SessionStart print sprint banner naar stderr + hookSpecificOutput JSON voor Claude context. Stop hook toont samenvatting (done/total, open items, missing evidence) en regenereert STATUS.md. Beide getest en werkend.
 
 **Afhankelijkheden:** WI_0005, WI_0006
 
 ---
 
-## ⬜ WI_0009 — Testing contract + pre-commit test check
+## ✅ WI_0009 — Testing contract + pre-commit test check
 
-**Status:** planned  
-**Branch:** `—`
+**Status:** done  
+**Branch:** `wi/WI_0009-testing-contract`
 
 **Beschrijving:**  
 testing.yaml contract aanmaken. pre-bash.sh uitbreiden: bij git commit met gewijzigde .py bestanden → run pytest --tb=short -q → WARN als falend (fail-open, 60s timeout).
 
 **Acceptatiecriteria:**
 
-[ ] .forge/contracts/testing.yaml aanwezig
-[ ] git commit met staged .py bestanden triggert pytest run
-[ ] Falende tests geven WARN (niet BLOCK) — fail-open
+[x] .forge/contracts/testing.yaml aanwezig
+[x] git commit met staged .py bestanden triggert pytest run
+[x] Falende tests geven WARN (niet BLOCK) — fail-open
+
+**Evidence:**
+
+- `.forge/contracts/testing.yaml`
+- `.forge/governor.py`
+
+**Uitkomst:**  
+Succesvol opgeleverd. testing.yaml contract aangemaakt. Governor bash-intercept uitgebreid: detecteert gestaged .py bestanden via subprocess, draait pytest met 60s timeout, geeft WARN bij falen. Commit gaat altijd door (fail-open).
 
 ---
 
-## ⬜ WI_0010 — Governor unit tests + audit-summary command
+## ✅ WI_0010 — Governor unit tests + audit-summary command
 
-**Status:** planned  
-**Branch:** `—`
+**Status:** done  
+**Branch:** `wi/WI_0010-governor-tests`
 
 **Beschrijving:**  
 pytest unit tests voor governor.py (minimaal 15 cases): commit validatie, branch naming, slice membership, WIP limits, verdict prioriteit, graceful handling van ontbrekende contracten/slice. Audit-summary subcommand toevoegen.
 
 **Acceptatiecriteria:**
 
-[ ] tests/test_governor.py aanwezig met ≥15 test cases
-[ ] pytest slaagt groen
-[ ] python .forge/governor.py audit-summary toont recent audit trail
+[x] tests/test_governor.py aanwezig met ≥15 test cases
+[x] pytest slaagt groen
+[x] python .forge/governor.py audit-summary toont recent audit trail
+
+**Evidence:**
+
+- `tests/test_governor.py`
+- `.forge/governor.py`
+
+**Uitkomst:**  
+Succesvol opgeleverd. 46 test cases in 20 test functies (parametrized): commit validatie, branch naming, slice membership, WIP limits, verdict prioriteit, graceful fallbacks, slice_status counts, evaluate() integratie, _extract_workitem. Alle 46 groen. audit-summary toont laatste 20 audit events met iconen.
 
 ---
 
-_Gegenereerd door governor op 2026-02-23 14:00 UTC_
+## ✅ WI_0011 — Merge-source enforcement in governor.py
+
+**Status:** done  
+**Branch:** `wi/WI_0011-merge-source-enforcement`
+
+**Beschrijving:**  
+Governor uitbreiden zodat de merge-hiërarchie (wi/* → feat/* → develop → main) runtime gehandhaafd wordt. Bij git merge wordt de huidige branch opgehaald via subprocess en gevalideerd: develop accepteert alleen feat/* of release/*, main accepteert alleen release/*, feat/* accepteert alleen wi/* (warn).
+
+**Acceptatiecriteria:**
+
+[x] git merge wi/... op develop → hard-block
+[x] git merge feat/... op develop → allow
+[x] git merge feat/... op main → hard-block
+[x] git merge release/v... op main → allow
+[x] merge-source-discipline regel aanwezig in merge-strategy.yaml
+[x] D0009 vastgelegd in DECISIONS.md
+
+**Evidence:**
+
+- `.forge/governor.py`
+- `.forge/contracts/merge-strategy.yaml`
+- `tracking/decisions/DECISIONS.md`
+
+**Uitkomst:**  
+Succesvol opgeleverd. Governor haalt huidige branch op via subprocess (fail-open bij fout). Alle merge-richting cases gevalideerd. Logic unit-getest: 8/8 cases correct.
+
+---
+
+_Gegenereerd door governor op 2026-02-23 19:11 UTC_

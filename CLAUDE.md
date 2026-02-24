@@ -4,7 +4,7 @@
 
 Foundry is a **project-agnostic knowledge-to-document CLI tool**.
 
-It ingests source material (Markdown, PDF, JSON, EPUB, plain text, git repos),
+It ingests source material (Markdown, PDF, JSON, EPUB, plain text, git repos, URLs, audio),
 stores chunks + embeddings in a per-project SQLite database (sqlite-vec),
 and generates structured Markdown documents via RAG + LLM.
 
@@ -45,11 +45,13 @@ Locked decisions. Deviations require an ADR in `tracking/decisions/`.
 | Language | Python 3.11+ |
 | Packaging | `pyproject.toml` + `uv` |
 | Vector DB | `sqlite-vec` |
-| Embeddings | OpenAI `text-embedding-3-small` |
-| LLM | OpenAI `gpt-4o` |
-| CLI | `typer` |
+| LLM / Embeddings | `litellm` (unified interface — `provider/model` format) |
+| Default LLM | `openai/gpt-4o` |
+| Default Embedding | `openai/text-embedding-3-small` |
+| CLI | `typer` + `rich` |
 | PDF parsing | `pypdf` |
-| EPUB parsing | `ebooklib` |
+| EPUB + HTML parsing | `beautifulsoup4` + `html2text` (GPL-3.0, intern gebruik — geen AGPL) |
+| Audio transcriptie | `litellm.transcription()` → OpenAI Whisper |
 | Testing | `pytest` |
 
 ---
@@ -60,12 +62,14 @@ Locked decisions. Deviations require an ADR in `tracking/decisions/`.
 src/foundry/          # Engine — project-agnostic, no exceptions
   cli/                # CLI entry points
   db/                 # SQLite schema, sqlite-vec integration
-  ingest/             # Chunkers per source type
+  ingest/             # Chunkers per source type (PDF, MD, EPUB, JSON, txt, git, web, audio)
   rag/                # Retrieval + context assembly
   generate/           # LLM calls, prompt templates, output writers
+  governance/         # foundry governance built-in (bash-intercept, audit, status)
+  plan/               # foundry plan (LLM-assisted feature + WI generation)
 tests/                # pytest, mirrors src/
 tracking/
-  features/           # F-*.md feature specs (F00–F05)
+  features/           # F-*.md feature specs (F00–F07)
   decisions/          # DECISIONS.md — append-only ADR log
   STATUS.md           # Auto-generated sprint status (never edit manually)
 .forge/               # Governance engine (governor + contracts + slice)
@@ -95,10 +99,12 @@ No force push. No direct commits to `main` or `develop`.
 |-------|------|-------|
 | 0 | Scaffold | pyproject.toml, package skeleton, CLAUDE.md, governance |
 | 1 | DB Layer | sqlite-vec schema, chunk + embedding tables |
-| 2 | Ingest | Chunkers (Markdown, PDF, JSON, EPUB, plain text, git) |
-| 3 | RAG + Generate | Retrieval, context assembly, LLM generation |
+| 2 | Ingest | Chunkers (Markdown, PDF, JSON, EPUB, plain text, git, web, audio) |
+| 3 | RAG + Generate | Retrieval, context assembly, token budget, LLM generation |
 | 4 | Feature Gates | features/ parsing, approval check, gate enforcement |
-| 5 | CLI Polish | foundry init/ingest/generate/features, dry-run |
+| 5 | CLI Polish | foundry init/ingest/generate/build/features, project wizard |
+| 6 | Project Governance | foundry wi/sprint/governance built-in, WI types, hardware lifecycle |
+| 7 | LLM Planning | foundry plan, LLM-assisted feature + WI generation |
 
 Current phase and allowed outputs are always in `.forge/slice.yaml`.
 
@@ -121,6 +127,10 @@ Current phase and allowed outputs are always in `.forge/slice.yaml`.
 - No commits without `[WI_XXXX]`, `[FEATURE_TRACKING]`, or `[DEV_GOVERNANCE]` prefix.
 - No direct commits or merges to `main` or `develop`.
 - If a required decision is missing: STOP and record in `tracking/decisions/DECISIONS.md`.
+- **Always `yaml.safe_load()` — never `yaml.load()` without Loader (RCE vector).**
+- **Never `shell=True` with user-supplied input — always `shell=False` + list args.**
+- **Never store API keys in config files — keys via environment variables only.**
+- **Always validate and confine file paths before opening (path traversal prevention).**
 
 ---
 
@@ -129,7 +139,9 @@ Current phase and allowed outputs are always in `.forge/slice.yaml`.
 ```bash
 uv venv && source .venv/bin/activate
 uv sync
-pytest                              # run tests
+uv lock                             # pin transitive deps (commit uv.lock)
+pytest                              # run tests (e2e excluded by default)
+pytest -m e2e                       # run e2e tests (requires API keys)
 ruff check src/                     # lint
 mypy src/foundry/                   # type check
 python .forge/governor.py status    # sprint status
@@ -139,9 +151,32 @@ python .forge/governor.py status    # sprint status
 
 ## Testing & Code Review Policy
 
-**Testing:**
+**Test pyramid:**
+```
+tests/
+  conftest.py           ← mock_litellm fixture, tmp_db fixture
+  unit/
+    db/                 ← test_repository.py, test_migrations.py
+    ingest/             ← test_chunkers.py (parametrized), test_embedding_writer.py
+    rag/                ← test_retriever.py, test_context_assembler.py
+    cli/                ← test_commands.py (Typer CliRunner)
+    test_config.py
+    test_path_validation.py
+  integration/          ← mocked LLM, real SQLite :memory:
+    test_ingest_pipeline.py
+    test_generate_pipeline.py
+    test_deduplication.py
+    test_recovery.py
+  e2e/                  ← @pytest.mark.e2e, skipped unless FOUNDRY_RUN_E2E=1
+    test_full_pipeline.py
+```
+
+**Testing rules:**
 - All new code requires tests in `tests/` (mirrors `src/` structure)
-- `pytest` must pass before any merge to `feat/*` or `develop`
+- Unit tests: no real I/O, no real LLM calls — mock via `conftest.mock_litellm`
+- Integration tests: mocked LiteLLM, real SQLite `:memory:` database
+- E2E tests: `@pytest.mark.e2e` — require real API keys, skipped by default
+- `pytest` (without `-m e2e`) must pass before any merge to `feat/*` or `develop`
 - Coverage target: ≥60% now, ≥80% from Phase 3 onward
 - Bug fixes include a regression test
 

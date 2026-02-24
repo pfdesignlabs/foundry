@@ -67,9 +67,68 @@ foundry --help
 pytest                              # run tests
 ruff check src/                     # lint
 mypy src/foundry/                   # type check
-python .forge/governor.py status    # sprint status
 ```
 
 Branch strategy: `wi/* → feat/* → develop → main`
 See [tracking/STATUS.md](tracking/STATUS.md) for current sprint.
 See [tracking/decisions/DECISIONS.md](tracking/decisions/DECISIONS.md) for architecture decisions.
+
+---
+
+## Governance
+
+Foundry uses a runtime governance system via `.forge/governor.py`. All git operations inside Claude Code are automatically intercepted and validated.
+
+### Automatic enforcement
+
+| Action | Result |
+|--------|--------|
+| `git checkout -b random-name` | ❌ Hard-block — must match `wi/WI_XXXX-*`, `feat/*`, `release/vX.Y.Z`, `hotfix/*` |
+| `git commit -m "fix stuff"` | ⚠️ Warn — message must be `[WI_XXXX] type(scope): description` |
+| `git commit` with staged `.py` files | Runs `pytest` automatically — warns if tests fail, never blocks |
+| `git push origin develop` | ❌ Hard-block — no direct push to protected branches |
+| `git merge wi/...` on `develop` | ❌ Hard-block — `develop` only accepts `feat/*` or `release/*` |
+| `git merge feat/...` on `develop` | ✅ Allow |
+| `git merge feat/...` on `main` | ❌ Hard-block — `main` only accepts `release/*` |
+| Session start | Prints sprint status banner + injects context into Claude |
+| Session end | Prints session summary, regenerates `tracking/STATUS.md` |
+
+### Governor commands
+
+```bash
+# Sprint status + regenerate tracking/STATUS.md
+python .forge/governor.py status
+
+# Last 20 audit events with verdict icons
+python .forge/governor.py audit-summary
+
+# Close sprint and archive STATUS.md to tracking/sprints/
+python .forge/governor.py sprint-close
+```
+
+### Commit message format
+
+```
+[WI_0042] feat(cli): add init command
+[WI_0042] fix(db): handle null embeddings
+[FEATURE_TRACKING] chore(specs): update F03
+[DEV_GOVERNANCE] refactor(governor): clean up audit logic
+```
+
+Pattern: `[WI_XXXX|FEATURE_TRACKING|DEV_GOVERNANCE] type(scope): description`
+
+### Branch naming
+
+```
+wi/WI_0042-slug          # work item branch
+feat/phase-1             # feature branch
+release/v1.0.0           # release branch
+hotfix/critical-fix      # hotfix branch
+```
+
+### Claude Code skills
+
+Type these in a Claude Code session:
+
+- `/forge-status` — interactive sprint dashboard (all WIs, criteria, warnings)
+- `/forge-plan` — update a WI status, outcome and evidence interactively

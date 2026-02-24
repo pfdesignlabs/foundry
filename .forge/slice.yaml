@@ -50,20 +50,26 @@ workitems:
   - id: WI_0012b
     title: "FTS5 virtual table voor BM25 full-text search"
     type: digital
-    status: pending
+    status: done
+    branch: wi/WI_0012bc-fts5-summaries
     depends_on: [WI_0012]
-    description: >
-      chunks_fts FTS5 virtual table aanmaken. rowid = chunks.rowid (native
-      FTS5 content table mapping). BM25 search via MATCH operator.
+    outcome: >
+      chunks_fts FTS5 virtual table met porter tokenizer aangemaakt in initialize().
+      Expliciete rowid insert (= chunks.rowid). BM25 MATCH search werkt. 3 tests groen.
+    evidence:
+      - src/foundry/db/schema.py
 
   - id: WI_0012c
     title: "source_summaries tabel"
     type: digital
-    status: pending
+    status: done
+    branch: wi/WI_0012bc-fts5-summaries
     depends_on: [WI_0012]
-    description: >
-      source_summaries tabel: source_id (FK → sources.id), summary_text (TEXT),
-      generated_at (DATETIME). Ophaalbaar per source_id.
+    outcome: >
+      source_summaries tabel aangemaakt: source_id PK (FK → sources cascade),
+      summary_text, generated_at. 3 tests groen (insert, retrieve, cascade delete).
+    evidence:
+      - src/foundry/db/schema.py
 
   - id: WI_0013
     title: "Migration runner (forward-only, geen rollbacks)"

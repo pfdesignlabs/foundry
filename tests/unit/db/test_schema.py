@@ -1,4 +1,4 @@
-"""Tests for database schema initialization (WI_0012)."""
+"""Tests for database schema initialization (WI_0012, WI_0012b, WI_0012c)."""
 
 from __future__ import annotations
 
@@ -76,4 +76,79 @@ def test_sources_foreign_key_cascade(tmp_db):
     tmp_db.execute("DELETE FROM sources WHERE id = ?", ("src-del",))
     tmp_db.commit()
     count = tmp_db.execute("SELECT COUNT(*) FROM chunks WHERE source_id = ?", ("src-del",)).fetchone()[0]
+    assert count == 0
+
+
+# --- WI_0012b: FTS5 virtual table ---
+
+def test_chunks_fts_table_exists(tmp_db):
+    row = tmp_db.execute(
+        "SELECT name FROM sqlite_master WHERE name='chunks_fts'"
+    ).fetchone()
+    assert row is not None
+
+
+def test_chunks_fts_bm25_search(tmp_db):
+    # Insert with explicit rowid matching chunks.rowid
+    tmp_db.execute("INSERT INTO chunks_fts(rowid, text) VALUES (1, 'DMX512 protocol timing')")
+    tmp_db.execute("INSERT INTO chunks_fts(rowid, text) VALUES (2, 'WiFi antenna placement')")
+    tmp_db.execute("INSERT INTO chunks_fts(rowid, text) VALUES (3, 'DMX receiver circuit design')")
+
+    rows = tmp_db.execute(
+        "SELECT rowid FROM chunks_fts WHERE text MATCH 'DMX512' ORDER BY bm25(chunks_fts)"
+    ).fetchall()
+    rowids = [r[0] for r in rows]
+    assert 1 in rowids
+    assert 2 not in rowids
+
+
+def test_chunks_fts_rowid_matches_chunks(tmp_db):
+    # rowid in FTS must be settable to an arbitrary integer (chunks.rowid mapping)
+    tmp_db.execute("INSERT INTO chunks_fts(rowid, text) VALUES (42, 'LED driver circuit')")
+    row = tmp_db.execute(
+        "SELECT rowid FROM chunks_fts WHERE text MATCH 'LED'"
+    ).fetchone()
+    assert row[0] == 42
+
+
+# --- WI_0012c: source_summaries table ---
+
+def test_source_summaries_table_exists(tmp_db):
+    assert _table_exists(tmp_db, "source_summaries")
+
+
+def test_source_summaries_columns(tmp_db):
+    cols = _table_columns(tmp_db, "source_summaries")
+    assert cols == {"source_id", "summary_text", "generated_at"}
+
+
+def test_source_summaries_insert_and_retrieve(tmp_db):
+    tmp_db.execute(
+        "INSERT INTO sources (id, path, content_hash, embedding_model) VALUES (?, ?, ?, ?)",
+        ("src-sum", "doc.pdf", "hash123", "openai/text-embedding-3-small"),
+    )
+    tmp_db.execute(
+        "INSERT INTO source_summaries (source_id, summary_text) VALUES (?, ?)",
+        ("src-sum", "A document about DMX512 protocol specifications."),
+    )
+    row = tmp_db.execute(
+        "SELECT summary_text FROM source_summaries WHERE source_id = ?", ("src-sum",)
+    ).fetchone()
+    assert "DMX512" in row["summary_text"]
+
+
+def test_source_summaries_cascade_delete(tmp_db):
+    tmp_db.execute(
+        "INSERT INTO sources (id, path, content_hash, embedding_model) VALUES (?, ?, ?, ?)",
+        ("src-del2", "x.pdf", "h", "model"),
+    )
+    tmp_db.execute(
+        "INSERT INTO source_summaries (source_id, summary_text) VALUES (?, ?)",
+        ("src-del2", "summary text"),
+    )
+    tmp_db.execute("DELETE FROM sources WHERE id = ?", ("src-del2",))
+    tmp_db.commit()
+    count = tmp_db.execute(
+        "SELECT COUNT(*) FROM source_summaries WHERE source_id = ?", ("src-del2",)
+    ).fetchone()[0]
     assert count == 0

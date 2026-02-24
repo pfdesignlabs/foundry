@@ -24,6 +24,16 @@ _APPROVED_RE = re.compile(r"^## Approved\s*$", re.MULTILINE)
 
 @dataclass
 class FeatureSpec:
+    """A parsed feature specification file from the features/ directory.
+
+    Attributes:
+        name: Filename stem (without .md extension).
+        path: Absolute path to the .md file.
+        content: Full text content of the spec file.
+        approved: True if the file contains the exact heading '## Approved'.
+        approved_on: Date string from the line after '## Approved', or None.
+    """
+
     name: str            # filename without .md extension
     path: Path
     content: str

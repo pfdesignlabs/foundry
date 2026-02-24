@@ -68,17 +68,23 @@ class ConfigError(ValueError):
 
 @dataclass
 class EmbeddingCfg:
+    """Embedding model configuration (foundry.yaml: embedding:)."""
+
     model: str = "openai/text-embedding-3-small"
 
 
 @dataclass
 class GenerationCfg:
+    """LLM generation configuration (foundry.yaml: generation:)."""
+
     model: str = "openai/gpt-4o"
     max_source_summaries: int = 10
 
 
 @dataclass
 class RetrievalCfg:
+    """Retrieval pipeline configuration (foundry.yaml: retrieval:)."""
+
     top_k: int = 10
     rrf_k: int = 60
     relevance_threshold: int = 4
@@ -87,12 +93,16 @@ class RetrievalCfg:
 
 @dataclass
 class ChunkerTypeCfg:
+    """Chunk size and overlap for a single chunker type."""
+
     chunk_size: int = 512
     overlap: float = 0.10
 
 
 @dataclass
 class ChunkersCfg:
+    """Per-type chunker configuration (foundry.yaml: chunkers:)."""
+
     default: ChunkerTypeCfg = field(default_factory=ChunkerTypeCfg)
     pdf: ChunkerTypeCfg = field(
         default_factory=lambda: ChunkerTypeCfg(chunk_size=400, overlap=0.20)
@@ -109,6 +119,15 @@ class ChunkersCfg:
 
 @dataclass
 class ProjectCfg:
+    """Project-level metadata (foundry.yaml: project:).
+
+    Attributes:
+        name: Human-readable project name.
+        brief: Local path to the project context file (loaded verbatim into the
+            system prompt). URLs are rejected to prevent SSRF.
+        brief_max_tokens: Token limit for the brief; a warning is shown if exceeded.
+    """
+
     name: str = ""
     brief: str | None = None  # local path only — no URLs (SSRF prevention)
     brief_max_tokens: int = 3_000
@@ -116,6 +135,20 @@ class ProjectCfg:
 
 @dataclass
 class DeliverySection:
+    """A single section in the delivery document (foundry.yaml: delivery.sections[]).
+
+    Attributes:
+        type: Section type — 'generated' (RAG+LLM), 'file' (disk check),
+            or 'physical' (WI status from slice.yaml).
+        feature: Feature spec name (type: generated only).
+        topic: Retrieval topic override (type: generated; falls back to heading).
+        heading: H1 heading for this section in the output document.
+        description: Descriptive text included in the section.
+        path: File path to check (type: file only).
+        tracking_wi: Work item ID to look up (type: physical only; never shown in output).
+        show_attributions: Whether to append footnote source attribution (default True).
+    """
+
     type: str = "generated"  # generated | file | physical
     feature: str | None = None
     topic: str | None = None
@@ -128,18 +161,24 @@ class DeliverySection:
 
 @dataclass
 class DeliveryCfg:
+    """Delivery document assembly configuration (foundry.yaml: delivery:)."""
+
     output: str = "delivery.md"
     sections: list[DeliverySection] = field(default_factory=list)
 
 
 @dataclass
 class PlanCfg:
+    """LLM-assisted planning configuration (foundry.yaml: plan:)."""
+
     model: str = "openai/gpt-4o"
     max_summaries: int = 20
 
 
 @dataclass
 class FoundryConfig:
+    """Root configuration object, built by load_config() from merged YAML layers."""
+
     project: ProjectCfg = field(default_factory=ProjectCfg)
     embedding: EmbeddingCfg = field(default_factory=EmbeddingCfg)
     generation: GenerationCfg = field(default_factory=GenerationCfg)

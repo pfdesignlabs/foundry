@@ -12,32 +12,60 @@ workitems:
   - id: WI_0030
     title: "Feature spec parser (^## Approved$ detectie, naam/inhoud/datum)"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0030-spec-parser
     depends_on: []
+    outcome: >
+      parse_spec() + load_all_specs(). Exact match via ^## Approved\s*$ regex
+      (case-sensitive, geen trailing tekst, geen false positives).
+      Approved date gelezen van regel na heading. 17 unit tests groen.
+    evidence:
+      - src/foundry/gates/parser.py
+      - tests/unit/gates/test_parser.py
 
   - id: WI_0031
     title: "Approval gate enforcement in foundry generate (hard fail + checklist)"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0031-gate-enforcement
     depends_on: [WI_0030]
+    outcome: >
+      _load_feature_spec() refactored met 4 gates: features/ ontbreekt (scaffold instructie),
+      geen .md bestanden, geen goedgekeurde specs (volledige checklist),
+      feature niet gevonden/goedgekeurd. 14 generate CLI tests groen (407 totaal).
+    evidence:
+      - src/foundry/cli/generate.py
+      - tests/unit/cli/test_generate.py
 
   - id: WI_0032
     title: "foundry features list — overzicht specs + goedkeuringsstatus"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0032-features-list
     depends_on: [WI_0030]
+    outcome: >
+      Rich table met naam, ✓/✗ status, goedkeuringsdatum per spec.
+      Gecombineerd geïmplementeerd met WI_0033 in src/foundry/cli/features.py.
+      13 CLI tests groen; 420 totaal.
+    evidence:
+      - src/foundry/cli/features.py
+      - tests/unit/cli/test_features.py
 
   - id: WI_0033
     title: "foundry features approve <name> — goedkeuring registreren in spec bestand"
     type: digital
-    status: pending
-    branch: wi/WI_0033-features-approve
+    status: done
+    branch: wi/WI_0032-features-list
     depends_on: [WI_0030]
+    outcome: >
+      Voegt ## Approved + Goedgekeurd op {datum} toe aan spec bestand.
+      Geen overschrijving als al goedgekeurd (melding + exit 0).
+      Gecombineerd met WI_0032. Roundtrip: approve → parse_spec() → approved=True verified.
+    evidence:
+      - src/foundry/cli/features.py
+      - tests/unit/cli/test_features.py
 
 metrics:
   velocity_target: 4
-  completed_this_slice: 0
+  completed_this_slice: 4
   carry_over_previous: 0

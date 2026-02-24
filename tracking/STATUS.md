@@ -1,81 +1,60 @@
-# Sprint SP_002 — Phase 1 — Database Layer (F01-DB)
+# Foundry — Sprint Status
 
-**Target:** 2026-03-07  
-**Started:** 2026-02-24  
-**Voortgang:** 0/6 work items done
-
-**Doel:** SQLite database schema opzetten met sqlite-vec extensie voor vector search. Sources + chunks tabellen, per-model vec tables (ensure_vec_table), FTS5 BM25 full-text search, source_summaries tabel, forward-only migration runner en repository pattern implementeren. Fundament voor alle ingest + retrieval.
+_Auto-gegenereerd. Niet handmatig bewerken._
+_Bijgewerkt: 2026-02-24_
 
 ---
 
-## ❓ WI_0012 — Verbindingslaag + schema: sources + chunks tabellen
+## Huidige sprint: SP_004 — Phase 3 — RAG + Generate (F03-RAG)
 
-**Status:** pending  
-**Branch:** `—`
+**Target:** 2026-03-14
+**Started:** 2026-02-24
+**Voortgang:** 7/7 work items done ✅
 
-**Beschrijving:**  
-SQLite verbinding opzetten met sqlite-vec extensie. Sources tabel: id (UUID TEXT PK), path (TEXT relatief), content_hash (TEXT SHA-256), embedding_model (TEXT), ingested_at (DATETIME). Chunks tabel: rowid (INTEGER implicit PK), source_id (FK), chunk_index (INT), text (TEXT), context_prefix (TEXT), metadata (JSON), created_at (DATETIME). schema_version tabel voor migration tracking.
+**Doel:** Volledige RAG + generatie pipeline: hybrid retrieval (BM25 + dense, RRF), HyDE query expansion, context assembler, LiteLLM client wrapper, prompt templates, output writer, foundry generate CLI command.
 
----
+**Testtotaal:** 388 unit tests groen
 
-## ❓ WI_0012a — Per-model sqlite-vec virtual tables (ensure_vec_table)
-
-**Status:** pending  
-**Branch:** `—`
-
-**Beschrijving:**  
-ensure_vec_table(model_slug, dimensions) implementeren — maakt vec_chunks_{model_slug} aan als nog niet bestaat. Naam bijv. vec_chunks_openai_text_embedding_3_small. rowid = chunks.rowid (native sqlite-vec mapping). Niet migration-managed.
-
-**Afhankelijkheden:** WI_0012
-
----
-
-## ❓ WI_0012b — FTS5 virtual table voor BM25 full-text search
-
-**Status:** pending  
-**Branch:** `—`
-
-**Beschrijving:**  
-chunks_fts FTS5 virtual table aanmaken. rowid = chunks.rowid (native FTS5 content table mapping). BM25 search via MATCH operator.
-
-**Afhankelijkheden:** WI_0012
+| WI | Titel | Status |
+|----|-------|--------|
+| WI_0024 | Retriever — hybrid BM25 + dense (RRF) | ✅ done |
+| WI_0024a | HyDE query expansion | ✅ done |
+| WI_0025 | Context assembler | ✅ done |
+| WI_0026 | LiteLLM client wrapper | ✅ done |
+| WI_0027 | Prompt templates | ✅ done |
+| WI_0028 | Output writer | ✅ done |
+| WI_0029 | foundry generate CLI command | ✅ done |
 
 ---
 
-## ❓ WI_0012c — source_summaries tabel
+## Sprint history
 
-**Status:** pending  
-**Branch:** `—`
+| Sprint | Naam | WIs | Status |
+|--------|------|-----|--------|
+| SP_001 | Scaffold + DEV_GOVERNANCE | 6/10 | ✅ done (deels) |
+| SP_002 | Phase 1 — DB Layer (F01-DB) | 6/6 | ✅ done |
+| SP_003 | Phase 2 — Ingest Pipeline (F02-INGEST) | 11/11 | ✅ done |
+| SP_004 | Phase 3 — RAG + Generate (F03-RAG) | 7/7 | ✅ done |
 
-**Beschrijving:**  
-source_summaries tabel: source_id (FK → sources.id), summary_text (TEXT), generated_at (DATETIME). Ophaalbaar per source_id.
-
-**Afhankelijkheden:** WI_0012
-
----
-
-## ❓ WI_0013 — Migration runner (forward-only, geen rollbacks)
-
-**Status:** pending  
-**Branch:** `—`
-
-**Beschrijving:**  
-Embedded Python migration runner: MIGRATIONS = [(version, sql), ...]. schema_version tabel bijhouden. Idempotent: twee keer uitvoeren = zelfde staat. Beheert alleen statische tabellen — vec tables zijn model-managed (niet hier).
-
-**Afhankelijkheden:** WI_0012, WI_0012a, WI_0012b, WI_0012c
+### Volgende fase
+**SP_005 — Phase 4: Feature Gates (F04-FEATURE-GATES)**
+- WI_0030: Feature spec parser (^## Approved$)
+- WI_0031: Approval check + gate enforcement
+- WI_0032: foundry features list
+- WI_0033: foundry features approve
 
 ---
 
-## ❓ WI_0015 — Repository pattern: chunk CRUD + FTS5 search + vec lookup + summaries
+## Codebase overzicht
 
-**Status:** pending  
-**Branch:** `—`
+```
+src/foundry/
+  cli/          ← ingest + generate commands
+  db/           ← schema, connection, repository, migrations, vectors
+  ingest/       ← chunkers: MD, PDF, EPUB, JSON, txt, git, web, audio
+                   embedding writer, summarizer
+  rag/          ← retriever (hybrid BM25+dense, RRF), HyDE, assembler, llm_client
+  generate/     ← templates (prompt builder), writer (output + attribution)
 
-**Beschrijving:**  
-Repository klasse voor alle database operaties: chunk insert/get/delete, source insert/get, FTS5 BM25 search, vec lookup (rowid mapping), source_summaries CRUD. Vec lookups via: SELECT c.* FROM chunks c WHERE c.rowid = vec_result.rowid. Retrieval geeft (chunk, score) tuples terug.
-
-**Afhankelijkheden:** WI_0013
-
----
-
-_Gegenereerd door governor op 2026-02-24 10:23 UTC_
+tests/unit/     ← 388 tests (mirrors src/)
+```

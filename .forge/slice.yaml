@@ -36,13 +36,16 @@ workitems:
   - id: WI_0012a
     title: "Per-model sqlite-vec virtual tables (ensure_vec_table)"
     type: digital
-    status: pending
+    status: done
+    branch: wi/WI_0012a-vec-tables
     depends_on: [WI_0012]
-    description: >
-      ensure_vec_table(model_slug, dimensions) implementeren — maakt
-      vec_chunks_{model_slug} aan als nog niet bestaat. Naam bijv.
-      vec_chunks_openai_text_embedding_3_small. rowid = chunks.rowid (native
-      sqlite-vec mapping). Niet migration-managed.
+    outcome: >
+      ensure_vec_table(), model_to_slug(), vec_table_name() geïmplementeerd.
+      Vec tables aangemaakt on-demand, idempotent, meerdere modellen naast elkaar.
+      rowid = chunks.rowid (native mapping). 11 unit tests groen.
+    evidence:
+      - src/foundry/db/vectors.py
+      - tests/unit/db/test_vectors.py
 
   - id: WI_0012b
     title: "FTS5 virtual table voor BM25 full-text search"

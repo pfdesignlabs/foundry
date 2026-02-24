@@ -1,4 +1,4 @@
-"""Foundry CLI entry point (WI_0023, WI_0029, WI_0032, WI_0033, WI_0037)."""
+"""Foundry CLI entry point (WI_0023, WI_0029, WI_0032, WI_0033, WI_0037, WI_0039)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import typer
 from foundry.cli.features import features_app
 from foundry.cli.generate import generate_cmd
 from foundry.cli.ingest import ingest_cmd
+from foundry.cli.remove import remove_cmd
 from foundry.cli.status import status_cmd
 
 
@@ -52,6 +53,7 @@ def main_callback(
 app.command("ingest")(ingest_cmd)
 app.command("generate")(generate_cmd)
 app.command("status")(status_cmd)
+app.command("remove")(remove_cmd)
 app.add_typer(features_app, name="features")
 
 

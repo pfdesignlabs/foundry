@@ -22,6 +22,15 @@ from foundry.rag.retriever import ScoredChunk
 
 @dataclass
 class AssemblerConfig:
+    """Configuration for the context assembler.
+
+    Attributes:
+        scorer_model: LiteLLM model used for relevance scoring and conflict detection.
+        relevance_threshold: Minimum relevance score (0-10) for a chunk to be kept.
+        token_budget: Maximum total tokens for the assembled context.
+        generation_model: Target generation model (used for token counting).
+    """
+
     scorer_model: str = "openai/gpt-4o-mini"
     relevance_threshold: int = 4       # chunks below this score are filtered
     token_budget: int = 8_192          # max tokens for assembled context
@@ -30,6 +39,14 @@ class AssemblerConfig:
 
 @dataclass
 class ConflictReport:
+    """A detected factual contradiction between two source chunks.
+
+    Attributes:
+        source_a: Source ID or label of the first conflicting chunk.
+        source_b: Source ID or label of the second conflicting chunk.
+        description: Human-readable description of the contradiction.
+    """
+
     source_a: str
     source_b: str
     description: str
@@ -37,6 +54,15 @@ class ConflictReport:
 
 @dataclass
 class AssembledContext:
+    """The output of the assembler: filtered chunks ready for the LLM prompt.
+
+    Attributes:
+        chunks: Chunks that passed relevance filtering and fit the token budget.
+        relevance_scores: Mapping of chunk rowid → relevance score (0-10).
+        conflicts: Detected contradictions between chunks (informational only).
+        total_tokens: Approximate token count of all selected chunk texts.
+    """
+
     chunks: list[Chunk] = field(default_factory=list)
     relevance_scores: dict[int, int] = field(default_factory=dict)  # rowid → score
     conflicts: list[ConflictReport] = field(default_factory=list)

@@ -13,7 +13,20 @@ from foundry.db.models import Chunk, Source
 
 
 class Repository:
+    """Data access layer for all Foundry database entities.
+
+    Wraps an open sqlite3.Connection and provides typed methods for sources,
+    chunks, FTS5 search, vec embeddings, and source summaries. The connection
+    is owned by the caller and must be closed after use.
+    """
+
     def __init__(self, conn: sqlite3.Connection) -> None:
+        """Initialise with an open database connection.
+
+        Args:
+            conn: An open sqlite3.Connection with sqlite-vec loaded and schema
+                initialised (see foundry.db.schema.initialize).
+        """
         self._conn = conn
 
     # ------------------------------------------------------------------
@@ -21,6 +34,11 @@ class Repository:
     # ------------------------------------------------------------------
 
     def add_source(self, source: Source) -> None:
+        """Insert a new source record.
+
+        Args:
+            source: Source dataclass instance to persist.
+        """
         self._conn.execute(
             """
             INSERT INTO sources (id, path, content_hash, embedding_model)
@@ -31,6 +49,14 @@ class Repository:
         self._conn.commit()
 
     def get_source(self, source_id: str) -> Source | None:
+        """Return a source by ID, or None if not found.
+
+        Args:
+            source_id: UUID of the source.
+
+        Returns:
+            Source instance or None.
+        """
         row = self._conn.execute(
             "SELECT id, path, content_hash, embedding_model, ingested_at FROM sources WHERE id = ?",
             (source_id,),
@@ -38,6 +64,14 @@ class Repository:
         return _row_to_source(row) if row else None
 
     def get_source_by_path(self, path: str) -> Source | None:
+        """Return a source by its path/URL, or None if not found.
+
+        Args:
+            path: The original source path or URL string.
+
+        Returns:
+            Source instance or None.
+        """
         row = self._conn.execute(
             "SELECT id, path, content_hash, embedding_model, ingested_at FROM sources WHERE path = ?",
             (path,),
@@ -45,12 +79,22 @@ class Repository:
         return _row_to_source(row) if row else None
 
     def list_sources(self) -> list[Source]:
+        """Return all sources ordered by ingestion time (oldest first).
+
+        Returns:
+            List of Source instances (may be empty).
+        """
         rows = self._conn.execute(
             "SELECT id, path, content_hash, embedding_model, ingested_at FROM sources ORDER BY ingested_at"
         ).fetchall()
         return [_row_to_source(r) for r in rows]
 
     def delete_source(self, source_id: str) -> None:
+        """Delete a source record by ID. Does not cascade to chunks or embeddings.
+
+        Args:
+            source_id: UUID of the source to delete.
+        """
         self._conn.execute("DELETE FROM sources WHERE id = ?", (source_id,))
         self._conn.commit()
 
@@ -82,6 +126,14 @@ class Repository:
         return rowid
 
     def get_chunk_by_rowid(self, rowid: int) -> Chunk | None:
+        """Return a chunk by its SQLite rowid, or None if not found.
+
+        Args:
+            rowid: The integer rowid used as the vec table key.
+
+        Returns:
+            Chunk instance or None.
+        """
         row = self._conn.execute(
             """
             SELECT rowid, source_id, chunk_index, text, context_prefix, metadata, created_at
@@ -92,6 +144,14 @@ class Repository:
         return _row_to_chunk(row) if row else None
 
     def count_chunks_by_source(self, source_id: str) -> int:
+        """Return the number of chunks belonging to *source_id*.
+
+        Args:
+            source_id: UUID of the parent source.
+
+        Returns:
+            Integer count (0 if source has no chunks).
+        """
         return self._conn.execute(
             "SELECT COUNT(*) FROM chunks WHERE source_id = ?", (source_id,)
         ).fetchone()[0]
@@ -167,6 +227,14 @@ class Repository:
     # ------------------------------------------------------------------
 
     def add_summary(self, source_id: str, summary_text: str) -> None:
+        """Upsert a document summary for *source_id*.
+
+        Replaces any existing summary and resets generated_at.
+
+        Args:
+            source_id: UUID of the source.
+            summary_text: Generated plain-text summary.
+        """
         self._conn.execute(
             """
             INSERT INTO source_summaries (source_id, summary_text)
@@ -180,6 +248,14 @@ class Repository:
         self._conn.commit()
 
     def get_summary(self, source_id: str) -> str | None:
+        """Return the stored summary text for *source_id*, or None if missing.
+
+        Args:
+            source_id: UUID of the source.
+
+        Returns:
+            Summary text string or None.
+        """
         row = self._conn.execute(
             "SELECT summary_text FROM source_summaries WHERE source_id = ?", (source_id,)
         ).fetchone()
@@ -193,6 +269,11 @@ class Repository:
         return [(r["source_id"], r["summary_text"]) for r in self._conn.execute(sql).fetchall()]
 
     def delete_summary(self, source_id: str) -> None:
+        """Delete the stored summary for *source_id*.
+
+        Args:
+            source_id: UUID of the source whose summary should be removed.
+        """
         self._conn.execute(
             "DELETE FROM source_summaries WHERE source_id = ?", (source_id,)
         )

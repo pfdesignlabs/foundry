@@ -29,6 +29,16 @@ _RRF_K = 60
 
 @dataclass
 class RetrieverConfig:
+    """Configuration for the hybrid retriever.
+
+    Attributes:
+        embedding_model: LiteLLM embedding model string (provider/model format).
+        mode: Retrieval mode — 'hybrid' (BM25 + dense), 'dense', or 'bm25'.
+        top_k: Maximum number of chunks to return after fusion.
+        hyde: Whether to use HyDE (Hypothetical Document Embedding) query expansion.
+        hyde_model: LiteLLM model used to generate the hypothetical answer for HyDE.
+    """
+
     embedding_model: str = "openai/text-embedding-3-small"
     mode: str = "hybrid"            # hybrid | dense | bm25
     top_k: int = 10
@@ -38,6 +48,15 @@ class RetrieverConfig:
 
 @dataclass
 class ScoredChunk:
+    """A retrieved chunk together with its RRF fusion score and per-channel ranks.
+
+    Attributes:
+        chunk: The Chunk instance from the database.
+        rrf_score: Reciprocal Rank Fusion score (higher = more relevant).
+        dense_rank: 1-based rank in the dense retrieval channel (None if not retrieved).
+        bm25_rank: 1-based rank in the BM25 channel (None if not retrieved).
+    """
+
     chunk: Chunk
     rrf_score: float
     dense_rank: int | None = None

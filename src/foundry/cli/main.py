@@ -1,4 +1,4 @@
-"""Foundry CLI entry point (WI_0023)."""
+"""Foundry CLI entry point (WI_0023, WI_0029)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import importlib.metadata
 
 import typer
 
+from foundry.cli.generate import generate_cmd
 from foundry.cli.ingest import ingest_cmd
 
 app = typer.Typer(
@@ -15,6 +16,7 @@ app = typer.Typer(
 )
 
 app.command("ingest")(ingest_cmd)
+app.command("generate")(generate_cmd)
 
 
 @app.command("version")

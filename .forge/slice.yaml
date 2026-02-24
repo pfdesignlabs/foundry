@@ -88,13 +88,17 @@ workitems:
   - id: WI_0015
     title: "Repository pattern: chunk CRUD + FTS5 search + vec lookup + summaries"
     type: digital
-    status: pending
+    status: done
+    branch: wi/WI_0015-repository
     depends_on: [WI_0013]
-    description: >
-      Repository klasse voor alle database operaties: chunk insert/get/delete,
-      source insert/get, FTS5 BM25 search, vec lookup (rowid mapping),
-      source_summaries CRUD. Vec lookups via: SELECT c.* FROM chunks c WHERE
-      c.rowid = vec_result.rowid. Retrieval geeft (chunk, score) tuples terug.
+    outcome: >
+      models.py: Source + Chunk dataclasses. repository.py: Repository klasse met
+      source CRUD, chunk CRUD (FTS5 auto-sync), vec add + search, source summaries CRUD.
+      Vec lookup via rowid join. 25 tests groen. 69 DB tests totaal.
+    evidence:
+      - src/foundry/db/models.py
+      - src/foundry/db/repository.py
+      - tests/unit/db/test_repository.py
 
 metrics:
   velocity_target: 6

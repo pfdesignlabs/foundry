@@ -12,6 +12,11 @@ class Database:
     """Per-project SQLite database with sqlite-vec vector search support."""
 
     def __init__(self, db_path: Path | str) -> None:
+        """Store the database path. Call connect() to open the connection.
+
+        Args:
+            db_path: Path to the SQLite database file (created if missing).
+        """
         self.db_path = Path(db_path)
 
     def connect(self) -> sqlite3.Connection:
@@ -26,10 +31,12 @@ class Database:
         return conn
 
     def __enter__(self) -> sqlite3.Connection:
+        """Open the database and return the connection (context manager support)."""
         self._conn = self.connect()
         return self._conn
 
     def __exit__(self, *args: object) -> None:
+        """Close the connection when leaving the context manager."""
         if self._conn:
             self._conn.close()
             self._conn = None

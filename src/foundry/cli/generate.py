@@ -128,51 +128,68 @@ def generate_cmd(
     )
 
     try:
-        # ---- Retrieve ----
+        # ---- Step 1/5: Retrieve ----
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             transient=True,
             console=console,
         ) as prog:
-            prog.add_task("Retrieving relevant chunks…", total=None)
+            prog.add_task("[1/5] Retrieving…", total=None)
             try:
                 candidates = retrieve(topic, repo, retriever_config)
             except RuntimeError as exc:
                 console.print(f"[red]Error:[/] {exc}")
                 raise typer.Exit(1)
 
-        console.print(f"  [dim]Retrieved {len(candidates)} candidate chunks[/]")
+        console.print(f"  [dim]✓ Retrieving — {len(candidates)} candidate chunks[/]")
 
-        # ---- Assemble context ----
+        # ---- Step 2/5: Score ----
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             transient=True,
             console=console,
         ) as prog:
-            prog.add_task("Scoring + assembling context…", total=None)
+            prog.add_task("[2/5] Scoring…", total=None)
             ctx = assemble(topic, candidates, assembler_config)
 
-        console.print(f"  [dim]Assembled {len(ctx.chunks)} chunks ({ctx.total_tokens:,} tokens)[/]")
+        console.print(f"  [dim]✓ Scoring — {len(ctx.chunks)} chunks kept ({ctx.total_tokens:,} tokens)[/]")
 
-        # ---- Conflict warnings ----
+        # ---- Step 3/5: Check conflicts ----
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+        ) as prog:
+            prog.add_task("[3/5] Checking conflicts…", total=None)
+
         if ctx.conflicts:
-            console.print("\n  [yellow]⚠ Conflicts detected:[/]")
+            console.print(f"  [yellow]⚠ Checking conflicts — {len(ctx.conflicts)} found:[/]")
             for conflict in ctx.conflicts:
                 console.print(f"    {conflict.source_a} ↔ {conflict.source_b}: {conflict.description}")
+        else:
+            console.print("  [dim]✓ Checking conflicts — none[/]")
 
-        # ---- Source summaries ----
-        summaries = [s for _, s in repo.list_summaries(limit=prompt_config.max_source_summaries)]
+        # ---- Step 4/5: Assemble prompt ----
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+            console=console,
+        ) as prog:
+            prog.add_task("[4/5] Assembling…", total=None)
+            summaries = [s for _, s in repo.list_summaries(limit=prompt_config.max_source_summaries)]
+            prompt = build_prompt(
+                query=topic,
+                chunks=ctx.chunks,
+                config=prompt_config,
+                feature_spec=feature_spec_content,
+                source_summaries=summaries,
+            )
 
-        # ---- Build prompt ----
-        prompt = build_prompt(
-            query=topic,
-            chunks=ctx.chunks,
-            config=prompt_config,
-            feature_spec=feature_spec_content,
-            source_summaries=summaries,
-        )
+        console.print(f"  [dim]✓ Assembling — {count_tokens(_GENERATION_MODEL, prompt.system_prompt):,} prompt tokens[/]")
 
         if prompt.budget_warning:
             console.print(f"\n{prompt.budget_warning}")
@@ -180,7 +197,7 @@ def generate_cmd(
         # ---- Dry run ----
         if dry_run:
             console.print("\n[bold]Dry run — assembled context:[/]")
-            console.print(f"  System prompt length: {count_tokens(_GENERATION_MODEL, prompt.system_prompt):,} tokens")
+            console.print(f"  System prompt: {count_tokens(_GENERATION_MODEL, prompt.system_prompt):,} tokens")
             console.print(f"  Chunks: {len(ctx.chunks)}")
             console.print("\n[dim]No LLM generation performed.[/]")
             return
@@ -192,14 +209,14 @@ def generate_cmd(
             console.print(f"[red]Error:[/] {exc}")
             raise typer.Exit(1)
 
-        # ---- Generate ----
+        # ---- Step 5/5: Generate ----
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             transient=True,
             console=console,
         ) as prog:
-            prog.add_task(f"Generating with {_GENERATION_MODEL}…", total=None)
+            prog.add_task(f"[5/5] Generating with {_GENERATION_MODEL}…", total=None)
             content = complete(
                 model=_GENERATION_MODEL,
                 messages=[

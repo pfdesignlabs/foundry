@@ -1,248 +1,78 @@
 slice:
-  id: SP_001
-  name: "Scaffold, CLAUDE.md & DEV_GOVERNANCE"
-  started: 2026-02-23
-  target: 2026-03-01
+  id: SP_002
+  name: "Phase 1 — Database Layer (F01-DB)"
+  started: 2026-02-24
+  target: 2026-03-07
   goal: >
-    Foundry's fundament opzetten: package structuur, declaratieve governance (CLAUDE.md),
-    en runtime enforcement via het .forge/ governor systeem (contracten, hooks, slice tracking).
+    SQLite database schema opzetten met sqlite-vec extensie voor vector search.
+    Sources + chunks tabellen, per-model vec tables (ensure_vec_table), FTS5 BM25
+    full-text search, source_summaries tabel, forward-only migration runner en
+    repository pattern implementeren. Fundament voor alle ingest + retrieval.
 
 workitems:
-  - id: WI_0001
-    title: "Scaffold: pyproject.toml, package skeleton, tracking/, DECISIONS.md"
-    status: done
-    branch: wi/WI_0001-scaffold
+  - id: WI_0012
+    title: "Verbindingslaag + schema: sources + chunks tabellen"
+    type: digital
+    status: pending
     description: >
-      pyproject.toml aanmaken met alle project dependencies (typer, openai, PyYAML, ebooklib,
-      pypdf, sqlite-vec). Package skeleton opzetten onder src/foundry/. Tracking directory
-      aanmaken met feature specs (F00-F05) en initial decisions log.
-    acceptance_criteria:
-      - "[x] pyproject.toml aanwezig met alle afhankelijkheden"
-      - "[x] src/foundry/__init__.py aanwezig"
-      - "[x] tracking/features/ bevat F00-F05.md feature specs"
-      - "[x] tracking/decisions/DECISIONS.md bevat D0001 (RAG), D0002 (sqlite-vec), D0003 (branches)"
-      - "[x] .gitignore bijgewerkt met .forge/audit.jsonl"
-    outcome: >
-      Succesvol opgeleverd. Package structuur aangemaakt, alle 6 feature files beschreven,
-      3 architectuurbeslissingen gedocumenteerd (RAG, sqlite-vec, branch hierarchy).
-    evidence:
-      - pyproject.toml
-      - src/foundry/__init__.py
-      - tracking/features/F00-SCAFFOLD.md
-      - tracking/decisions/DECISIONS.md
+      SQLite verbinding opzetten met sqlite-vec extensie. Sources tabel:
+      id (UUID TEXT PK), path (TEXT relatief), content_hash (TEXT SHA-256),
+      embedding_model (TEXT), ingested_at (DATETIME). Chunks tabel:
+      rowid (INTEGER implicit PK), source_id (FK), chunk_index (INT),
+      text (TEXT), context_prefix (TEXT), metadata (JSON), created_at (DATETIME).
+      schema_version tabel voor migration tracking.
 
-  - id: WI_0002
-    title: "CLAUDE.md met architectuur non-negotiables en fase structuur"
-    status: done
-    branch: wi/WI_0002-claude-md
+  - id: WI_0012a
+    title: "Per-model sqlite-vec virtual tables (ensure_vec_table)"
+    type: digital
+    status: pending
+    depends_on: [WI_0012]
     description: >
-      CLAUDE.md aanmaken in de repo root als declaratieve governance laag. Bevat:
-      architectuur non-negotiables (6 locked decisions), tech stack, repo map,
-      branch strategy, fase structuur, sessie discipline, hard rules, en bootstrap sectie.
-    acceptance_criteria:
-      - "[x] CLAUDE.md aanwezig met alle 6 architectuur non-negotiables"
-      - "[x] Bootstrap sectie aanwezig voor eerste sessie zonder slice.yaml"
-      - "[x] Verwijzing naar .forge/slice.yaml als actieve slice bron"
-      - "[x] Branch hierarchy gedocumenteerd (wi/* → feat/* → develop → main)"
-      - "[x] Fase structuur (0-5) gedocumenteerd"
-    outcome: >
-      Succesvol opgeleverd. CLAUDE.md beschrijft volledig de governance structuur,
-      architectuurkeuzes zijn als wet vastgelegd, bootstrap protocol aanwezig.
-    evidence:
-      - CLAUDE.md
+      ensure_vec_table(model_slug, dimensions) implementeren — maakt
+      vec_chunks_{model_slug} aan als nog niet bestaat. Naam bijv.
+      vec_chunks_openai_text_embedding_3_small. rowid = chunks.rowid (native
+      sqlite-vec mapping). Niet migration-managed.
 
-  - id: WI_0003
-    title: "governor.py: bash-intercept, session-start, commit, branch-create, status"
-    status: done
-    branch: wi/WI_0003-governor-core
+  - id: WI_0012b
+    title: "FTS5 virtual table voor BM25 full-text search"
+    type: digital
+    status: pending
+    depends_on: [WI_0012]
     description: >
-      Governor engine implementeren die runtime enforcement uitvoert. Events:
-      bash-intercept (intercepteert git commands via Claude Code hook),
-      session-start (controleert slice health bij sessie start),
-      commit (valideert commit message format),
-      branch-create (valideert branch naming — hard-block),
-      status (genereert slice overzicht + STATUS.md).
-    acceptance_criteria:
-      - "[x] git push origin main → exit 2 (hard-block)"
-      - "[x] git commit -m 'fix stuff' → verdict: warn"
-      - "[x] git checkout -b random-name → verdict: block (exit 2)"
-      - "[x] git checkout -b wi/WI_0001-slug → verdict: allow"
-      - "[x] python .forge/governor.py status → JSON output zonder hangs"
-      - "[x] STATUS.md wordt aangemaakt na status event"
-    outcome: >
-      Succesvol opgeleverd. Governor werkt correct voor alle events. Datetime deprecation
-      warning gefixed (utcnow → now(timezone.utc)). bash-intercept leest geen stdin
-      voor niet-intercept events (blokkeerprobleem opgelost).
-    evidence:
-      - .forge/governor.py
+      chunks_fts FTS5 virtual table aanmaken. rowid = chunks.rowid (native
+      FTS5 content table mapping). BM25 search via MATCH operator.
 
-  - id: WI_0004
-    title: "Contracten: merge-strategy.yaml + commit-discipline.yaml"
-    status: done
-    branch: wi/WI_0004-contracts
+  - id: WI_0012c
+    title: "source_summaries tabel"
+    type: digital
+    status: pending
+    depends_on: [WI_0012]
     description: >
-      YAML contracten aanmaken die de governance regels declaratief vastleggen.
-      merge-strategy.yaml: branch naming (hard-block), protected branch push/merge regels.
-      commit-discipline.yaml: commit message format validatie (warn).
-    acceptance_criteria:
-      - "[x] merge-strategy.yaml aanwezig met branch-naming rule (hard-block)"
-      - "[x] commit-discipline.yaml aanwezig met commit format rule (warn)"
-      - "[x] Contracten worden geladen door governor._load_contracts()"
-    outcome: >
-      Succesvol opgeleverd. Twee contracten aangemaakt. Branch naming is hard-block,
-      commit discipline is warn (informerend). Contracten zijn machine-readable YAML.
-    evidence:
-      - .forge/contracts/merge-strategy.yaml
-      - .forge/contracts/commit-discipline.yaml
+      source_summaries tabel: source_id (FK → sources.id), summary_text (TEXT),
+      generated_at (DATETIME). Ophaalbaar per source_id.
 
-  - id: WI_0005
-    title: "pre-bash.sh hook + .claude/settings.json"
-    status: done
-    branch: wi/WI_0005-hooks
+  - id: WI_0013
+    title: "Migration runner (forward-only, geen rollbacks)"
+    type: digital
+    status: pending
+    depends_on: [WI_0012, WI_0012a, WI_0012b, WI_0012c]
     description: >
-      Claude Code hook opzetten die alle Bash tool-calls onderschept en doorstuur naar
-      de governor. pre-bash.sh is één regel (exec python .forge/governor.py bash-intercept).
-      settings.json registreert de hook voor PreToolUse + SessionStart events.
-    acceptance_criteria:
-      - "[x] pre-bash.sh is executable (chmod +x)"
-      - "[x] echo '{\"tool_input\":{\"command\":\"git push origin main\"}}' | .forge/hooks/pre-bash.sh → exit 2"
-      - "[x] .claude/settings.json bevat PreToolUse + SessionStart hooks"
-      - "[x] settings.json is gecommit naar repo (governance geldt voor iedereen)"
-    outcome: >
-      Succesvol opgeleverd. Hook is één regel, geen bash JSON parsing, geen jq dependency.
-      Governor doet alle zware verwerking. settings.json gecommit als onderdeel van repo governance.
-    evidence:
-      - .forge/hooks/pre-bash.sh
-      - .claude/settings.json
+      Embedded Python migration runner: MIGRATIONS = [(version, sql), ...].
+      schema_version tabel bijhouden. Idempotent: twee keer uitvoeren = zelfde staat.
+      Beheert alleen statische tabellen — vec tables zijn model-managed (niet hier).
 
-  - id: WI_0006
-    title: "slice.yaml (SP_001) + workitem-discipline.yaml contract"
-    status: done
-    branch: wi/WI_0006-slice-tracker
+  - id: WI_0015
+    title: "Repository pattern: chunk CRUD + FTS5 search + vec lookup + summaries"
+    type: digital
+    status: pending
+    depends_on: [WI_0013]
     description: >
-      .forge/slice.yaml aanmaken als machine-readable sprint tracker voor SP_001.
-      Bevat alle 10 work items met status, branch, evidence, beschrijving en acceptatiecriteria.
-      workitem-discipline.yaml contract aanmaken voor WIP limits en slice membership checks.
-      STATUS.md generatie verrijkt met volledige WI history.
-    acceptance_criteria:
-      - "[x] .forge/slice.yaml aanwezig met alle 10 WIs voor SP_001"
-      - "[x] python .forge/governor.py status toont 5/10 done"
-      - "[x] tracking/STATUS.md bevat volledige WI beschrijvingen, criteria en uitkomsten"
-      - "[x] workitem-discipline.yaml contract aanwezig"
-    outcome: >
-      Succesvol opgeleverd. slice.yaml is de enige bron van waarheid voor sprint tracking.
-      STATUS.md bevat nu volledige sprint history inclusief beschrijvingen, criteria, uitkomsten.
-    evidence:
-      - .forge/slice.yaml
-      - .forge/contracts/workitem-discipline.yaml
-      - tracking/STATUS.md
-
-  - id: WI_0007
-    title: "/forge-status + /forge-plan skills (forward planning)"
-    status: done
-    branch: wi/WI_0007-forge-skills
-    description: >
-      Claude Code skills aanmaken als forward planning. /forge-status toont interactief
-      dashboard vanuit slice.yaml. /forge-plan laat WI statussen updaten.
-    acceptance_criteria:
-      - "[x] .claude/skills/forge-status/SKILL.md aanwezig"
-      - "[x] .claude/skills/forge-plan/SKILL.md aanwezig"
-      - "[x] Skills werken wanneer Claude Code skills ondersteund worden"
-    outcome: >
-      Succesvol opgeleverd. forge-status toont volledig sprint dashboard (header, tabel,
-      WI details, waarschuwingen) na governor status run. forge-plan ondersteunt alle
-      status-transities inclusief terugzetten, vraagt outcome + evidence bij done,
-      herberekent completed_this_slice automatisch.
-    evidence:
-      - .claude/skills/forge-status/SKILL.md
-      - .claude/skills/forge-plan/SKILL.md
-    depends_on: [WI_0006]
-
-  - id: WI_0008
-    title: "SessionStart + Stop hooks"
-    status: done
-    branch: wi/WI_0008-session-hooks
-    description: >
-      SessionStart hook geeft slice status bij sessie start (BLOCK bij corrupt slice.yaml,
-      WARN voor rest). Stop hook toont sprint samenvatting aan einde van sessie.
-    acceptance_criteria:
-      - "[x] SessionStart hook geeft sprint status bij sessie start"
-      - "[x] Corrupt slice.yaml → exit 2 (sessie geblokkeerd)"
-      - "[x] Stop hook genereert session summary"
-    outcome: >
-      Succesvol opgeleverd. SessionStart print sprint banner naar stderr + hookSpecificOutput
-      JSON voor Claude context. Stop hook toont samenvatting (done/total, open items,
-      missing evidence) en regenereert STATUS.md. Beide getest en werkend.
-    evidence:
-      - .forge/governor.py
-      - .claude/settings.json
-    depends_on: [WI_0005, WI_0006]
-
-  - id: WI_0009
-    title: "Testing contract + pre-commit test check"
-    status: done
-    branch: wi/WI_0009-testing-contract
-    description: >
-      testing.yaml contract aanmaken. pre-bash.sh uitbreiden: bij git commit met
-      gewijzigde .py bestanden → run pytest --tb=short -q → WARN als falend (fail-open, 60s timeout).
-    acceptance_criteria:
-      - "[x] .forge/contracts/testing.yaml aanwezig"
-      - "[x] git commit met staged .py bestanden triggert pytest run"
-      - "[x] Falende tests geven WARN (niet BLOCK) — fail-open"
-    outcome: >
-      Succesvol opgeleverd. testing.yaml contract aangemaakt. Governor bash-intercept
-      uitgebreid: detecteert gestaged .py bestanden via subprocess, draait pytest met
-      60s timeout, geeft WARN bij falen. Commit gaat altijd door (fail-open).
-    evidence:
-      - .forge/contracts/testing.yaml
-      - .forge/governor.py
-
-  - id: WI_0010
-    title: "Governor unit tests + audit-summary command"
-    status: done
-    branch: wi/WI_0010-governor-tests
-    description: >
-      pytest unit tests voor governor.py (minimaal 15 cases): commit validatie,
-      branch naming, slice membership, WIP limits, verdict prioriteit, graceful
-      handling van ontbrekende contracten/slice. Audit-summary subcommand toevoegen.
-    acceptance_criteria:
-      - "[x] tests/test_governor.py aanwezig met ≥15 test cases"
-      - "[x] pytest slaagt groen"
-      - "[x] python .forge/governor.py audit-summary toont recent audit trail"
-    outcome: >
-      Succesvol opgeleverd. 46 test cases in 20 test functies (parametrized): commit
-      validatie, branch naming, slice membership, WIP limits, verdict prioriteit,
-      graceful fallbacks, slice_status counts, evaluate() integratie, _extract_workitem.
-      Alle 46 groen. audit-summary toont laatste 20 audit events met iconen.
-    evidence:
-      - tests/test_governor.py
-      - .forge/governor.py
-
-  - id: WI_0011
-    title: "Merge-source enforcement in governor.py"
-    status: done
-    branch: wi/WI_0011-merge-source-enforcement
-    description: >
-      Governor uitbreiden zodat de merge-hiërarchie (wi/* → feat/* → develop → main)
-      runtime gehandhaafd wordt. Bij git merge wordt de huidige branch opgehaald via
-      subprocess en gevalideerd: develop accepteert alleen feat/* of release/*,
-      main accepteert alleen release/*, feat/* accepteert alleen wi/* (warn).
-    acceptance_criteria:
-      - "[x] git merge wi/... op develop → hard-block"
-      - "[x] git merge feat/... op develop → allow"
-      - "[x] git merge feat/... op main → hard-block"
-      - "[x] git merge release/v... op main → allow"
-      - "[x] merge-source-discipline regel aanwezig in merge-strategy.yaml"
-      - "[x] D0009 vastgelegd in DECISIONS.md"
-    outcome: >
-      Succesvol opgeleverd. Governor haalt huidige branch op via subprocess (fail-open bij
-      fout). Alle merge-richting cases gevalideerd. Logic unit-getest: 8/8 cases correct.
-    evidence:
-      - .forge/governor.py
-      - .forge/contracts/merge-strategy.yaml
-      - tracking/decisions/DECISIONS.md
+      Repository klasse voor alle database operaties: chunk insert/get/delete,
+      source insert/get, FTS5 BM25 search, vec lookup (rowid mapping),
+      source_summaries CRUD. Vec lookups via: SELECT c.* FROM chunks c WHERE
+      c.rowid = vec_result.rowid. Retrieval geeft (chunk, score) tuples terug.
 
 metrics:
   velocity_target: 6
-  completed_this_slice: 11
+  completed_this_slice: 0
   carry_over_previous: 0

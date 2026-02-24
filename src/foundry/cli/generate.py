@@ -1,4 +1,4 @@
-"""foundry generate CLI command (WI_0029).
+"""foundry generate CLI command (WI_0029, WI_0031).
 
 Operator review tool — generates a per-feature draft document via RAG + LLM.
 (Not the delivery tool — that is `foundry build`, F05-CLI WI_0040.)
@@ -13,6 +13,11 @@ Flags:
   --db PATH         Path to .foundry.db (default: .foundry.db)
   --dry-run         Show retrieval + prompt without LLM generation
   --yes             Skip overwrite + cost prompts
+
+Gate enforcement (WI_0031):
+  - features/ directory missing → hard fail with scaffold instruction
+  - no .md files in features/   → hard fail
+  - no approved specs            → hard fail with full spec checklist
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ from foundry.db.connection import Database
 from foundry.db.repository import Repository
 from foundry.db.schema import initialize
 from foundry.db.vectors import model_to_slug
+from foundry.gates.parser import FeatureSpec, load_all_specs
 from foundry.generate.templates import PromptConfig, build_prompt
 from foundry.generate.writer import (
     add_attribution,
@@ -95,8 +101,8 @@ def generate_cmd(
         console.print("  [dim]Cancelled.[/]")
         raise typer.Exit(0)
 
-    # ---- Feature spec ----
-    feature_spec_content = _load_feature_spec(feature)
+    # ---- Feature gate (WI_0031) ----
+    feature_spec_content = _load_feature_spec(feature, _FEATURES_DIR)
 
     # ---- DB ----
     conn = _open_db(db)
@@ -215,59 +221,84 @@ def generate_cmd(
 
 
 # ------------------------------------------------------------------
-# Feature spec loading
+# Feature gate (WI_0031)
 # ------------------------------------------------------------------
 
 
-def _load_feature_spec(feature_name: str | None) -> str | None:
-    """Load an approved feature spec by name.
+def _load_feature_spec(feature_name: str | None, features_dir: Path = _FEATURES_DIR) -> str:
+    """Load an approved feature spec, enforcing the feature gate (WI_0031).
+
+    Hard fail (exit 1) in all cases where generation must not proceed:
+      1. features/ directory does not exist → scaffold instruction
+      2. No .md files in features/          → no specs created yet
+      3. No approved specs                  → full checklist of pending specs
+      4. feature_name not found / not approved
 
     If feature_name is None and only one approved spec exists → auto-select.
-    If multiple approved specs exist and feature_name is None → hard fail with list.
-    Returns the spec content or None if no features directory exists.
+    If multiple approved specs and feature_name is None → hard fail with list.
+
+    Returns:
+        The approved spec's content as a string.
     """
-    if not _FEATURES_DIR.exists():
-        return None
+    # Gate 1: directory missing
+    if not features_dir.is_dir():
+        console.print(
+            "[red]Error:[/] No features/ directory found.\n\n"
+            "  To use foundry generate, you need at least one approved feature spec.\n"
+            "  Checklist:\n"
+            "    [ ] Create a features/ directory in your project root\n"
+            "    [ ] Add a feature spec: features/<name>.md\n"
+            "    [ ] Approve it: foundry features approve <name>"
+        )
+        raise typer.Exit(1)
 
-    approved = _find_approved_specs()
+    all_specs = load_all_specs(features_dir)
 
+    # Gate 2: no .md files at all
+    if not all_specs:
+        console.print(
+            "[red]Error:[/] No feature specs found in features/.\n\n"
+            "  Checklist:\n"
+            "    [ ] Add a feature spec: features/<name>.md\n"
+            "    [ ] Approve it: foundry features approve <name>"
+        )
+        raise typer.Exit(1)
+
+    approved = [s for s in all_specs if s.approved]
+
+    # Gate 3: no approved specs — show full checklist
     if not approved:
-        return None
+        pending_list = "\n".join(f"    [ ] foundry features approve {s.name}" for s in all_specs)
+        console.print(
+            "[red]Error:[/] No approved feature specs found.\n\n"
+            "  Pending specs (approve one to proceed):\n"
+            f"{pending_list}"
+        )
+        raise typer.Exit(1)
 
+    # Gate 4a: specific feature requested
     if feature_name:
-        # Exact match or substring
-        matches = [s for s in approved if feature_name in s.stem]
+        matches = [s for s in approved if feature_name in s.name]
         if not matches:
+            approved_names = ", ".join(s.name for s in approved)
             console.print(
                 f"[red]Error:[/] Feature spec '{feature_name}' not found or not approved.\n"
-                f"  Approved specs: {', '.join(s.stem for s in approved)}"
+                f"  Approved specs: {approved_names}"
             )
             raise typer.Exit(1)
-        return matches[0].read_text(encoding="utf-8")
+        return matches[0].content
 
+    # Gate 4b: auto-select if exactly one approved
     if len(approved) == 1:
-        return approved[0].read_text(encoding="utf-8")
+        return approved[0].content
 
-    # Multiple approved specs → require --feature
+    # Gate 4c: multiple approved → require --feature
     console.print(
         "[red]Error:[/] Multiple approved feature specs found. "
         "Use --feature NAME to select one:\n"
-        + "\n".join(f"  - {s.stem}" for s in approved)
+        + "\n".join(f"  - {s.name}" for s in approved)
     )
     raise typer.Exit(1)
-
-
-def _find_approved_specs() -> list[Path]:
-    """Return list of feature spec files that contain '## Approved'."""
-    specs = []
-    for path in sorted(_FEATURES_DIR.glob("*.md")):
-        try:
-            content = path.read_text(encoding="utf-8")
-            if "## Approved" in content:
-                specs.append(path)
-        except OSError:
-            continue
-    return specs
 
 
 # ------------------------------------------------------------------

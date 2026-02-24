@@ -105,10 +105,11 @@ def test_validate_output_path_traversal_blocked(tmp_path):
         validate_output_path("../../etc/passwd", allowed_base=tmp_path)
 
 
-def test_validate_output_path_absolute_outside_blocked(tmp_path):
-    outside = "/tmp/evil.md"
-    with pytest.raises(ValueError, match="Path traversal"):
-        validate_output_path(outside, allowed_base=tmp_path)
+def test_validate_output_path_absolute_accepted(tmp_path):
+    # Absolute paths are accepted as-is (user explicitly chose the location)
+    inside = str(tmp_path / "output.md")
+    resolved = validate_output_path(inside, allowed_base=tmp_path)
+    assert resolved == (tmp_path / "output.md").resolve()
 
 
 def test_validate_output_path_absolute_inside_allowed(tmp_path):

@@ -64,24 +64,32 @@ def _short_source_label(chunk: Chunk) -> str:
 def validate_output_path(output: str, allowed_base: Path | None = None) -> Path:
     """Normalize and validate the output path.
 
-    The resolved path must be within *allowed_base* (default: CWD).
-    Raises ValueError on path traversal attempts.
+    Security model:
+    - Absolute paths are accepted as-is (user explicitly chose the location).
+    - Relative paths are confined to *allowed_base* (default: CWD).
+      Traversal sequences like '../../etc/passwd' are hard-blocked.
 
     Args:
         output: The raw output path string from the user.
-        allowed_base: Base directory to confine output to. Defaults to CWD.
+        allowed_base: Base directory to confine relative paths to. Defaults to CWD.
 
     Returns:
         Resolved absolute Path.
 
     Raises:
-        ValueError: If the resolved path escapes the allowed base directory.
+        ValueError: If a relative path escapes the allowed base directory.
     """
+    path = Path(output)
+
+    if path.is_absolute():
+        return path.resolve()
+
+    # Relative path — confine to allowed_base
     if allowed_base is None:
         allowed_base = Path.cwd()
 
     allowed_base = allowed_base.resolve()
-    resolved = (allowed_base / output).resolve()
+    resolved = (allowed_base / path).resolve()
 
     try:
         resolved.relative_to(allowed_base)

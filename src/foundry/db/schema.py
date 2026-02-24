@@ -52,17 +52,7 @@ CURRENT_VERSION = 1
 
 
 def initialize(conn: sqlite3.Connection) -> None:
-    """Create all base tables and record schema version (idempotent)."""
-    conn.execute(_CREATE_SCHEMA_VERSION)
-    conn.execute(_CREATE_SOURCES)
-    conn.execute(_CREATE_CHUNKS)
-    conn.execute(_CREATE_CHUNKS_FTS)
-    conn.execute(_CREATE_SOURCE_SUMMARIES)
+    """Initialize the database schema via the migration runner (idempotent)."""
+    from foundry.db.migrations import run_migrations
 
-    row = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
-    if row[0] is None:
-        conn.execute(
-            "INSERT INTO schema_version (version) VALUES (?)", (CURRENT_VERSION,)
-        )
-
-    conn.commit()
+    run_migrations(conn)

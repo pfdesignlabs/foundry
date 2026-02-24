@@ -47,18 +47,18 @@ workitems:
   - id: WI_0034
     title: "foundry init — interactieve wizard + project scaffold"
     type: digital
-    status: in_progress
+    status: done
     branch: wi/WI_0034-init-wizard
     depends_on: [WI_0038]
 
   - id: WI_0040
     title: "foundry build — geconsolideerd klantleveringsdocument (type: generated/file/physical)"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0040-build-command
     depends_on: [WI_0038]
 
 metrics:
   velocity_target: 7
-  completed_this_slice: 5
+  completed_this_slice: 7
   carry_over_previous: 0

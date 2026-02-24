@@ -32,6 +32,22 @@ CREATE TABLE IF NOT EXISTS chunks (
 )
 """
 
+# WI_0012b: FTS5 virtual table for BM25 full-text search.
+# Rows are inserted explicitly (rowid = chunks.rowid) by the repository.
+_CREATE_CHUNKS_FTS = """
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(text, tokenize='porter ascii')
+"""
+
+# WI_0012c: Source summaries — one summary per ingested document.
+_CREATE_SOURCE_SUMMARIES = """
+CREATE TABLE IF NOT EXISTS source_summaries (
+    source_id       TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+    summary_text    TEXT NOT NULL,
+    generated_at    DATETIME NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (source_id)
+)
+"""
+
 CURRENT_VERSION = 1
 
 
@@ -40,6 +56,8 @@ def initialize(conn: sqlite3.Connection) -> None:
     conn.execute(_CREATE_SCHEMA_VERSION)
     conn.execute(_CREATE_SOURCES)
     conn.execute(_CREATE_CHUNKS)
+    conn.execute(_CREATE_CHUNKS_FTS)
+    conn.execute(_CREATE_SOURCE_SUMMARIES)
 
     row = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
     if row[0] is None:

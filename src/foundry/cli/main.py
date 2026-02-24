@@ -1,4 +1,4 @@
-"""Foundry CLI entry point (WI_0023, WI_0029, WI_0032, WI_0033, WI_0037, WI_0039)."""
+"""Foundry CLI entry point (WI_0023, WI_0029, WI_0032, WI_0033, WI_0037, WI_0039, WI_0034)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import typer
 
 from foundry.cli.features import features_app
 from foundry.cli.generate import generate_cmd
+from foundry.cli.init import init_cmd
 from foundry.cli.ingest import ingest_cmd
 from foundry.cli.remove import remove_cmd
 from foundry.cli.status import status_cmd
@@ -50,6 +51,7 @@ def main_callback(
     """Foundry — knowledge-to-document CLI."""
 
 
+app.command("init")(init_cmd)
 app.command("ingest")(ingest_cmd)
 app.command("generate")(generate_cmd)
 app.command("status")(status_cmd)

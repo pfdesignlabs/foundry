@@ -12,43 +12,43 @@ workitems:
   - id: WI_0038
     title: "Config file support — globaal + per project (foundry.yaml + ~/.foundry/config.yaml)"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0038-config-support
     depends_on: []
-
-  - id: WI_0034
-    title: "foundry init — interactieve wizard + project scaffold"
-    type: digital
-    status: pending
-    branch: wi/WI_0034-init-wizard
-    depends_on: [WI_0038]
 
   - id: WI_0035
     title: "Progress indicators via rich (ingest: chunks, generate: stappen)"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0035-progress-indicators
     depends_on: []
 
   - id: WI_0036
     title: "Rijke error messages met actionable feedback"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0036-rich-errors
     depends_on: []
 
   - id: WI_0037
     title: "foundry --version + foundry status (project overzicht, delivery readiness)"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0037-status-command
     depends_on: [WI_0038]
 
   - id: WI_0039
     title: "foundry remove — source lifecycle management met bevestiging"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0039-remove-command
+    depends_on: [WI_0038]
+
+  - id: WI_0034
+    title: "foundry init — interactieve wizard + project scaffold"
+    type: digital
+    status: in_progress
+    branch: wi/WI_0034-init-wizard
     depends_on: [WI_0038]
 
   - id: WI_0040
@@ -60,5 +60,5 @@ workitems:
 
 metrics:
   velocity_target: 7
-  completed_this_slice: 0
+  completed_this_slice: 5
   carry_over_previous: 0

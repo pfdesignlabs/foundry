@@ -1,0 +1,19 @@
+contract: commit-discipline
+version: 1
+scope: git-operations
+description: >
+  Enforce commit message conventions.
+  Format: [WI_XXXX] type(scope): description
+  Allowed prefixes: WI_XXXX, FEATURE_TRACKING, DEV_GOVERNANCE
+
+rules:
+  - id: commit-references-workitem
+    enforce: warn
+    description: >
+      Commits moeten beginnen met een herkende prefix:
+        [WI_XXXX] type(scope): description
+        [FEATURE_TRACKING] type(scope): description
+        [DEV_GOVERNANCE] type(scope): description
+    pattern: >
+      ^\[(WI_\d{4}|FEATURE_TRACKING|DEV_GOVERNANCE)\]\s+
+      (feat|fix|refactor|test|docs|chore|ci)\(.+\):\s+.+

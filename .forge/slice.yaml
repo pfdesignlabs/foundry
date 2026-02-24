@@ -1,0 +1,43 @@
+slice:
+  id: SP_005
+  name: "Phase 4 — Feature Gates (F04-FEATURE-GATES)"
+  started: 2026-02-24
+  target: 2026-03-07
+  goal: >
+    Feature spec parser + goedkeuringsgate voor foundry generate.
+    Hard fail + volledige checklist als geen goedgekeurde specs.
+    foundry features list + foundry features approve CLI commands.
+
+workitems:
+  - id: WI_0030
+    title: "Feature spec parser (^## Approved$ detectie, naam/inhoud/datum)"
+    type: digital
+    status: pending
+    branch: wi/WI_0030-spec-parser
+    depends_on: []
+
+  - id: WI_0031
+    title: "Approval gate enforcement in foundry generate (hard fail + checklist)"
+    type: digital
+    status: pending
+    branch: wi/WI_0031-gate-enforcement
+    depends_on: [WI_0030]
+
+  - id: WI_0032
+    title: "foundry features list — overzicht specs + goedkeuringsstatus"
+    type: digital
+    status: pending
+    branch: wi/WI_0032-features-list
+    depends_on: [WI_0030]
+
+  - id: WI_0033
+    title: "foundry features approve <name> — goedkeuring registreren in spec bestand"
+    type: digital
+    status: pending
+    branch: wi/WI_0033-features-approve
+    depends_on: [WI_0030]
+
+metrics:
+  velocity_target: 4
+  completed_this_slice: 0
+  carry_over_previous: 0

@@ -5,16 +5,43 @@ requires-python = ">=3.11"
 dependencies = [
     "typer>=0.12",
     "openai>=1.0",
+    "litellm>=1.56,<2.0",
     "PyYAML>=6.0",
-    "ebooklib>=0.18",
+    "beautifulsoup4>=4.12",
+    "html2text>=2024.2",
     "pypdf>=4.0",
-    "sqlite-vec>=0.1",
+    "sqlite-vec>=0.1.6,<0.2",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5.0",
     "mypy>=1.8",
+    "ruff>=0.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -q"
+markers = [
+    "e2e: end-to-end tests requiring real API keys (deselect with -m 'not e2e')",
+]
+filterwarnings = [
+    "ignore::bs4.XMLParsedAsHTMLWarning",
 ]
 
 [project.scripts]

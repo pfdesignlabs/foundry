@@ -1,4 +1,4 @@
-"""Tests for foundry generate CLI command (WI_0029)."""
+"""Tests for foundry generate CLI command (WI_0029, WI_0031)."""
 
 from __future__ import annotations
 
@@ -59,6 +59,18 @@ def populated_db(db_path: Path):
     return db_path
 
 
+@pytest.fixture
+def approved_features_dir(tmp_path: Path) -> Path:
+    """A features/ directory with one approved spec."""
+    features = tmp_path / "features"
+    features.mkdir()
+    (features / "wiring.md").write_text(
+        "# Wiring Guide\n\n## Approved\nGoedgekeurd op 2026-03-01\n",
+        encoding="utf-8",
+    )
+    return features
+
+
 def _mock_pipeline():
     """Context manager that mocks all LLM calls in generate pipeline."""
     mock_completion_resp = MagicMock()
@@ -116,26 +128,102 @@ def test_generate_path_traversal_blocked(populated_db):
 
 
 # ------------------------------------------------------------------
+# Feature gate (WI_0031)
+# ------------------------------------------------------------------
+
+
+def test_generate_no_features_dir_hard_fails(tmp_path, populated_db):
+    """features/ missing → hard fail with scaffold instruction."""
+    out = tmp_path / "draft.md"
+    no_features_dir = tmp_path / "nonexistent_features"
+
+    with patch("foundry.cli.generate._FEATURES_DIR", no_features_dir):
+        result = runner.invoke(
+            app,
+            [
+                "generate",
+                "--topic", "DMX wiring",
+                "--output", str(out),
+                "--db", str(populated_db),
+                "--yes",
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "features" in result.output.lower()
+    assert "Checklist" in result.output or "checklist" in result.output.lower()
+
+
+def test_generate_empty_features_dir_hard_fails(tmp_path, populated_db):
+    """features/ exists but has no .md files → hard fail."""
+    out = tmp_path / "draft.md"
+    features_dir = tmp_path / "features"
+    features_dir.mkdir()
+
+    with patch("foundry.cli.generate._FEATURES_DIR", features_dir):
+        result = runner.invoke(
+            app,
+            [
+                "generate",
+                "--topic", "DMX wiring",
+                "--output", str(out),
+                "--db", str(populated_db),
+                "--yes",
+            ],
+        )
+
+    assert result.exit_code == 1
+    assert "Error" in result.output
+
+
+def test_generate_no_approved_specs_hard_fails(tmp_path, populated_db):
+    """features/ has specs but none approved → hard fail with full checklist."""
+    out = tmp_path / "draft.md"
+    features_dir = tmp_path / "features"
+    features_dir.mkdir()
+    (features_dir / "wiring.md").write_text("# Wiring\n\nNot approved yet.\n")
+    (features_dir / "firmware.md").write_text("# Firmware\n\nNot approved yet.\n")
+
+    with patch("foundry.cli.generate._FEATURES_DIR", features_dir):
+        result = runner.invoke(
+            app,
+            [
+                "generate",
+                "--topic", "DMX wiring",
+                "--output", str(out),
+                "--db", str(populated_db),
+                "--yes",
+            ],
+        )
+
+    assert result.exit_code == 1
+    # Both spec names should appear in the checklist
+    assert "wiring" in result.output
+    assert "firmware" in result.output
+
+
+# ------------------------------------------------------------------
 # No embeddings → error
 # ------------------------------------------------------------------
 
 
-def test_generate_no_embeddings_fails(tmp_path, db_path):
+def test_generate_no_embeddings_fails(tmp_path, db_path, approved_features_dir):
     db = Database(db_path)
     conn = db.connect()
     initialize(conn)
     conn.close()
 
-    result = runner.invoke(
-        app,
-        [
-            "generate",
-            "--topic", "DMX wiring",
-            "--output", str(tmp_path / "out.md"),
-            "--db", str(db_path),
-            "--yes",
-        ],
-    )
+    with patch("foundry.cli.generate._FEATURES_DIR", approved_features_dir):
+        result = runner.invoke(
+            app,
+            [
+                "generate",
+                "--topic", "DMX wiring",
+                "--output", str(tmp_path / "out.md"),
+                "--db", str(db_path),
+                "--yes",
+            ],
+        )
     assert result.exit_code == 1
     assert "No embeddings" in result.output or "Error" in result.output
 
@@ -145,11 +233,14 @@ def test_generate_no_embeddings_fails(tmp_path, db_path):
 # ------------------------------------------------------------------
 
 
-def test_generate_dry_run_no_file_written(tmp_path, populated_db):
+def test_generate_dry_run_no_file_written(tmp_path, populated_db, approved_features_dir):
     out = tmp_path / "draft.md"
     mocks = _mock_pipeline()
 
-    with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8]:
+    with (
+        patch("foundry.cli.generate._FEATURES_DIR", approved_features_dir),
+        mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8],
+    ):
         result = runner.invoke(
             app,
             [
@@ -172,11 +263,14 @@ def test_generate_dry_run_no_file_written(tmp_path, populated_db):
 # ------------------------------------------------------------------
 
 
-def test_generate_writes_output_file(tmp_path, populated_db):
+def test_generate_writes_output_file(tmp_path, populated_db, approved_features_dir):
     out = tmp_path / "draft.md"
     mocks = _mock_pipeline()
 
-    with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8]:
+    with (
+        patch("foundry.cli.generate._FEATURES_DIR", approved_features_dir),
+        mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8],
+    ):
         result = runner.invoke(
             app,
             [
@@ -194,11 +288,14 @@ def test_generate_writes_output_file(tmp_path, populated_db):
     assert "Generated content." in content
 
 
-def test_generate_output_includes_attribution(tmp_path, populated_db):
+def test_generate_output_includes_attribution(tmp_path, populated_db, approved_features_dir):
     out = tmp_path / "draft.md"
     mocks = _mock_pipeline()
 
-    with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8]:
+    with (
+        patch("foundry.cli.generate._FEATURES_DIR", approved_features_dir),
+        mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8],
+    ):
         result = runner.invoke(
             app,
             [
@@ -212,44 +309,22 @@ def test_generate_output_includes_attribution(tmp_path, populated_db):
 
     assert result.exit_code == 0
     content = out.read_text()
-    # Attribution footnotes should be present (from add_attribution)
     assert "[^" in content or "---" in content
 
 
 # ------------------------------------------------------------------
-# Feature spec handling
+# Feature spec selection
 # ------------------------------------------------------------------
-
-
-def test_generate_no_features_dir_ok(tmp_path, populated_db):
-    """Works without a features/ directory (no feature spec)."""
-    out = tmp_path / "draft.md"
-    mocks = _mock_pipeline()
-
-    with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8]:
-        result = runner.invoke(
-            app,
-            [
-                "generate",
-                "--topic", "DMX wiring",
-                "--output", str(out),
-                "--db", str(populated_db),
-                "--yes",
-            ],
-        )
-
-    assert result.exit_code == 0
 
 
 def test_generate_feature_not_found_fails(tmp_path, populated_db):
     features_dir = tmp_path / "features"
     features_dir.mkdir()
-    (features_dir / "other.md").write_text("## Approved\nOther spec.")
+    (features_dir / "other.md").write_text("# Other\n\n## Approved\nGoedgekeurd op 2026-03-01\n")
 
     out = tmp_path / "draft.md"
     mocks = _mock_pipeline()
 
-    # Patch _FEATURES_DIR to point to our temp features dir
     with (
         patch("foundry.cli.generate._FEATURES_DIR", features_dir),
         mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8],
@@ -273,8 +348,8 @@ def test_generate_feature_not_found_fails(tmp_path, populated_db):
 def test_generate_multiple_specs_without_feature_flag_fails(tmp_path, populated_db):
     features_dir = tmp_path / "features"
     features_dir.mkdir()
-    (features_dir / "spec-a.md").write_text("## Approved\nSpec A.")
-    (features_dir / "spec-b.md").write_text("## Approved\nSpec B.")
+    (features_dir / "spec-a.md").write_text("# A\n\n## Approved\nGoedgekeurd op 2026-03-01\n")
+    (features_dir / "spec-b.md").write_text("# B\n\n## Approved\nGoedgekeurd op 2026-03-01\n")
 
     out = tmp_path / "draft.md"
     mocks = _mock_pipeline()
@@ -301,7 +376,7 @@ def test_generate_multiple_specs_without_feature_flag_fails(tmp_path, populated_
 def test_generate_auto_selects_single_approved_spec(tmp_path, populated_db):
     features_dir = tmp_path / "features"
     features_dir.mkdir()
-    (features_dir / "wiring.md").write_text("## Approved\nWiring spec content.")
+    (features_dir / "wiring.md").write_text("# Wiring\n\n## Approved\nGoedgekeurd op 2026-03-01\n")
 
     out = tmp_path / "draft.md"
     mocks = _mock_pipeline()
@@ -329,12 +404,13 @@ def test_generate_auto_selects_single_approved_spec(tmp_path, populated_db):
 # ------------------------------------------------------------------
 
 
-def test_generate_overwrite_protection_user_declines(tmp_path, populated_db):
+def test_generate_overwrite_protection_user_declines(tmp_path, populated_db, approved_features_dir):
     out = tmp_path / "existing.md"
     out.write_text("old content")
     mocks = _mock_pipeline()
 
     with (
+        patch("foundry.cli.generate._FEATURES_DIR", approved_features_dir),
         patch("foundry.generate.writer.typer.confirm", return_value=False),
         mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6], mocks[7], mocks[8],
     ):

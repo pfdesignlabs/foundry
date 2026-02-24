@@ -74,12 +74,16 @@ workitems:
   - id: WI_0013
     title: "Migration runner (forward-only, geen rollbacks)"
     type: digital
-    status: pending
+    status: done
+    branch: wi/WI_0013-migration-runner
     depends_on: [WI_0012, WI_0012a, WI_0012b, WI_0012c]
-    description: >
-      Embedded Python migration runner: MIGRATIONS = [(version, sql), ...].
-      schema_version tabel bijhouden. Idempotent: twee keer uitvoeren = zelfde staat.
-      Beheert alleen statische tabellen — vec tables zijn model-managed (niet hier).
+    outcome: >
+      migrations.py: MIGRATIONS lijst + run_migrations() — forward-only, idempotent.
+      initialize() in schema.py delegeert naar run_migrations(). Vec tables expliciet
+      uitgesloten. Incrementele toepassing getest (pending-only). 10 tests groen.
+    evidence:
+      - src/foundry/db/migrations.py
+      - tests/unit/db/test_migrations.py
 
   - id: WI_0015
     title: "Repository pattern: chunk CRUD + FTS5 search + vec lookup + summaries"

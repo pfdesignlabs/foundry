@@ -40,6 +40,9 @@ addopts = "--tb=short -q"
 markers = [
     "e2e: end-to-end tests requiring real API keys (deselect with -m 'not e2e')",
 ]
+filterwarnings = [
+    "ignore::bs4.XMLParsedAsHTMLWarning",
+]
 
 [project.scripts]
 foundry = "foundry.cli.main:app"

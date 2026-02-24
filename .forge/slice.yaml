@@ -1,71 +1,64 @@
 slice:
-  id: SP_005
-  name: "Phase 4 — Feature Gates (F04-FEATURE-GATES)"
+  id: SP_006
+  name: "Phase 5 — CLI Polish (F05-CLI)"
   started: 2026-02-24
-  target: 2026-03-07
+  target: 2026-03-14
   goal: >
-    Feature spec parser + goedkeuringsgate voor foundry generate.
-    Hard fail + volledige checklist als geen goedgekeurde specs.
-    foundry features list + foundry features approve CLI commands.
+    Volledige CLI afwerking: foundry init wizard, config file support,
+    progress indicators, rich error messages, foundry status, foundry remove,
+    en foundry build delivery assembler.
 
 workitems:
-  - id: WI_0030
-    title: "Feature spec parser (^## Approved$ detectie, naam/inhoud/datum)"
+  - id: WI_0038
+    title: "Config file support — globaal + per project (foundry.yaml + ~/.foundry/config.yaml)"
     type: digital
-    status: done
-    branch: wi/WI_0030-spec-parser
+    status: pending
+    branch: wi/WI_0038-config-support
     depends_on: []
-    outcome: >
-      parse_spec() + load_all_specs(). Exact match via ^## Approved\s*$ regex
-      (case-sensitive, geen trailing tekst, geen false positives).
-      Approved date gelezen van regel na heading. 17 unit tests groen.
-    evidence:
-      - src/foundry/gates/parser.py
-      - tests/unit/gates/test_parser.py
 
-  - id: WI_0031
-    title: "Approval gate enforcement in foundry generate (hard fail + checklist)"
+  - id: WI_0034
+    title: "foundry init — interactieve wizard + project scaffold"
     type: digital
-    status: done
-    branch: wi/WI_0031-gate-enforcement
-    depends_on: [WI_0030]
-    outcome: >
-      _load_feature_spec() refactored met 4 gates: features/ ontbreekt (scaffold instructie),
-      geen .md bestanden, geen goedgekeurde specs (volledige checklist),
-      feature niet gevonden/goedgekeurd. 14 generate CLI tests groen (407 totaal).
-    evidence:
-      - src/foundry/cli/generate.py
-      - tests/unit/cli/test_generate.py
+    status: pending
+    branch: wi/WI_0034-init-wizard
+    depends_on: [WI_0038]
 
-  - id: WI_0032
-    title: "foundry features list — overzicht specs + goedkeuringsstatus"
+  - id: WI_0035
+    title: "Progress indicators via rich (ingest: chunks, generate: stappen)"
     type: digital
-    status: done
-    branch: wi/WI_0032-features-list
-    depends_on: [WI_0030]
-    outcome: >
-      Rich table met naam, ✓/✗ status, goedkeuringsdatum per spec.
-      Gecombineerd geïmplementeerd met WI_0033 in src/foundry/cli/features.py.
-      13 CLI tests groen; 420 totaal.
-    evidence:
-      - src/foundry/cli/features.py
-      - tests/unit/cli/test_features.py
+    status: pending
+    branch: wi/WI_0035-progress-indicators
+    depends_on: []
 
-  - id: WI_0033
-    title: "foundry features approve <name> — goedkeuring registreren in spec bestand"
+  - id: WI_0036
+    title: "Rijke error messages met actionable feedback"
     type: digital
-    status: done
-    branch: wi/WI_0032-features-list
-    depends_on: [WI_0030]
-    outcome: >
-      Voegt ## Approved + Goedgekeurd op {datum} toe aan spec bestand.
-      Geen overschrijving als al goedgekeurd (melding + exit 0).
-      Gecombineerd met WI_0032. Roundtrip: approve → parse_spec() → approved=True verified.
-    evidence:
-      - src/foundry/cli/features.py
-      - tests/unit/cli/test_features.py
+    status: pending
+    branch: wi/WI_0036-rich-errors
+    depends_on: []
+
+  - id: WI_0037
+    title: "foundry --version + foundry status (project overzicht, delivery readiness)"
+    type: digital
+    status: pending
+    branch: wi/WI_0037-status-command
+    depends_on: [WI_0038]
+
+  - id: WI_0039
+    title: "foundry remove — source lifecycle management met bevestiging"
+    type: digital
+    status: pending
+    branch: wi/WI_0039-remove-command
+    depends_on: [WI_0038]
+
+  - id: WI_0040
+    title: "foundry build — geconsolideerd klantleveringsdocument (type: generated/file/physical)"
+    type: digital
+    status: pending
+    branch: wi/WI_0040-build-command
+    depends_on: [WI_0038]
 
 metrics:
-  velocity_target: 4
-  completed_this_slice: 4
+  velocity_target: 7
+  completed_this_slice: 0
   carry_over_previous: 0

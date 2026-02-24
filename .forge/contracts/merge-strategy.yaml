@@ -1,0 +1,38 @@
+contract: merge-strategy
+version: 1
+scope: git-operations
+description: >
+  Enforce branch naming and merge discipline.
+  Merge hierarchy: wi/* → feat/* → develop → main (via release/*).
+
+rules:
+  - id: no-direct-push-main
+    enforce: hard-block
+    description: "Geen directe pushes naar main — gebruik een release/* PR"
+
+  - id: no-direct-push-develop
+    enforce: hard-block
+    description: "Geen directe pushes naar develop — gebruik een feat/* PR"
+
+  - id: no-direct-merge-protected
+    enforce: warn
+    description: "Directe merge naar main/develop — overweeg een PR (fallback als bron niet bepaald kan worden)"
+
+  - id: merge-source-discipline
+    enforce: hard-block
+    description: >
+      Merge-bron moet overeenkomen met de hiërarchie:
+        develop  ← alleen feat/* of release/*
+        main     ← alleen release/vX.Y.Z
+        feat/*   ← alleen wi/* (warn, niet hard-block)
+      Fallback naar warn als huidige branch niet bepaald kan worden.
+
+  - id: branch-naming
+    enforce: hard-block
+    description: >
+      Branches volgen format:
+        wi/WI_XXXX-slug    (work items)
+        feat/slug          (features)
+        release/vX.Y.Z     (releases)
+        hotfix/slug        (hotfixes)
+    pattern: "^(wi/WI_\\d{4}-.+|feat/.+|release/v\\d+\\.\\d+\\.\\d+|hotfix/.+|main|develop)$"

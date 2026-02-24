@@ -1,0 +1,22 @@
+contract: testing
+version: 1
+scope: git-operations
+description: >
+  Enforce test discipline: pytest runs automatically before commits that
+  touch Python source files. Failing tests produce a warning (fail-open).
+
+rules:
+  - id: pytest-on-commit
+    enforce: warn
+    description: >
+      Bij git commit met gestaged .py bestanden: run pytest --tb=short -q.
+      Falende tests geven WARN (niet BLOCK) — fail-open, 60s timeout.
+    trigger: "git commit with staged *.py files"
+    behavior: fail-open
+
+  - id: coverage-target
+    enforce: warn
+    description: >
+      Coverage target: ≥60% voor Phase 0-2, ≥80% vanaf Phase 3.
+      Informatief — nog niet automatisch gehandhaafd.
+    note: "enforced manually via pytest --cov"

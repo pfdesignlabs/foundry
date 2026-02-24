@@ -1,0 +1,43 @@
+slice:
+  id: SP_007
+  name: "F08-DOCS — Documentation & Release Readiness"
+  started: 2026-02-24
+  target: 2026-03-07
+  goal: >
+    Volledige documentatie schrijven vóór release/v0.1.0:
+    README.md (uitgebreid), CONTRIBUTING.md, docstrings audit,
+    CLI --help tekst audit. Na SP_007: release/v0.1.0 → main.
+
+workitems:
+  - id: WI_0048
+    title: "CLI --help tekst audit — alle commands beschrijvend en compleet"
+    type: digital
+    status: done
+    branch: wi/WI_0048-help-text
+    depends_on: []
+
+  - id: WI_0047
+    title: "Docstrings audit — alle publieke functies en klassen in src/foundry/"
+    type: digital
+    status: done
+    branch: wi/WI_0047-docstrings
+    depends_on: []
+
+  - id: WI_0046
+    title: "CONTRIBUTING.md — developer guide"
+    type: digital
+    status: done
+    branch: wi/WI_0046-contributing
+    depends_on: []
+
+  - id: WI_0045
+    title: "README.md — uitgebreide gebruikersdocumentatie (400+ regels)"
+    type: digital
+    status: done
+    branch: wi/WI_0045-readme
+    depends_on: []
+
+metrics:
+  velocity_target: 4
+  completed_this_slice: 4
+  carry_over_previous: 0

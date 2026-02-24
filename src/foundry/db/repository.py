@@ -198,6 +198,43 @@ class Repository:
         )
         self._conn.commit()
 
+    # ------------------------------------------------------------------
+    # Vec embeddings — bulk delete by source (WI_0039)
+    # ------------------------------------------------------------------
+
+    def delete_embeddings_by_source(self, source_id: str) -> int:
+        """Delete all vec embeddings for *source_id* from every vec table.
+
+        Returns the total number of embedding rows deleted across all vec tables.
+        """
+        rowids = [
+            r[0]
+            for r in self._conn.execute(
+                "SELECT rowid FROM chunks WHERE source_id = ?", (source_id,)
+            ).fetchall()
+        ]
+        if not rowids:
+            return 0
+
+        vec_tables = [
+            r[0]
+            for r in self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'vec_%'"
+            ).fetchall()
+        ]
+
+        total_deleted = 0
+        placeholders = ",".join("?" * len(rowids))
+        for table in vec_tables:
+            cur = self._conn.execute(
+                f"DELETE FROM [{table}] WHERE rowid IN ({placeholders})",  # noqa: S608
+                rowids,
+            )
+            total_deleted += cur.rowcount
+
+        self._conn.commit()
+        return total_deleted
+
 
 # ------------------------------------------------------------------
 # Row → model helpers

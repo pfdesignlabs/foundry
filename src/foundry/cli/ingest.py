@@ -23,7 +23,7 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from foundry.db.connection import Database
 from foundry.db.models import Source
@@ -196,12 +196,23 @@ def _process_source(
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TextColumn("[dim]{task.fields[llm_calls]} LLM calls[/dim]"),
         transient=True,
         console=console,
     ) as prog:
-        prog.add_task(f"Embedding {len(chunks)} chunks…", total=None)
-        EmbeddingWriter(repo, config).write(chunks, vec_table)
-    console.print("  [green]✓[/] Embedded and stored")
+        task = prog.add_task(
+            "Embedding…",
+            total=len(chunks),
+            llm_calls=0,
+        )
+
+        def _on_chunk(idx: int) -> None:
+            prog.update(task, completed=idx + 1, llm_calls=(idx + 1) * 2)
+
+        EmbeddingWriter(repo, config).write(chunks, vec_table, on_progress=_on_chunk)
+    console.print(f"  [green]✓[/] Embedded and stored ({len(chunks) * 2} LLM calls)")
 
     # ---- Summarise ----
     with Progress(

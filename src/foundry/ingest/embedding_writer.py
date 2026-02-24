@@ -10,6 +10,7 @@ Implements D0004 (contextual embedding):
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import litellm
@@ -62,11 +63,24 @@ class EmbeddingWriter:
         self._config = config or EmbeddingConfig()
         self._warn_if_expensive()
 
-    def write(self, chunks: list[Chunk], vec_table: str) -> list[int]:
-        """Embed *chunks* and persist them. Returns the list of new rowids."""
+    def write(
+        self,
+        chunks: list[Chunk],
+        vec_table: str,
+        on_progress: Callable[[int], None] | None = None,
+    ) -> list[int]:
+        """Embed *chunks* and persist them. Returns the list of new rowids.
+
+        Args:
+            chunks:      Chunks to embed and store.
+            vec_table:   Name of the vec table to write embeddings into.
+            on_progress: Optional callback called after each chunk is fully
+                         written (context prefix + embedding + DB insert).
+                         Receives the zero-based index of the completed chunk.
+        """
         self._check_api_key()
         rowids: list[int] = []
-        for chunk in chunks:
+        for idx, chunk in enumerate(chunks):
             prefix = self._generate_prefix(chunk.text)
             chunk.context_prefix = prefix
 
@@ -77,6 +91,8 @@ class EmbeddingWriter:
             self._repo.add_embedding(vec_table, rowid, embedding)
 
             rowids.append(rowid)
+            if on_progress is not None:
+                on_progress(idx)
         return rowids
 
     # ------------------------------------------------------------------

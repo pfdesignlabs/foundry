@@ -1,118 +1,43 @@
 slice:
-  id: SP_004
-  name: "Phase 3 — RAG + Generate (F03-RAG)"
+  id: SP_005
+  name: "Phase 4 — Feature Gates (F04-FEATURE-GATES)"
   started: 2026-02-24
-  target: 2026-03-14
+  target: 2026-03-07
   goal: >
-    Volledige RAG + generatie pipeline: hybrid retrieval (BM25 + dense, RRF),
-    HyDE query expansion, context assembler (relevantie scoring, conflict detectie,
-    token budget), LiteLLM client wrapper, prompt templates met <context> tags,
-    output writer met footnote attributie, en foundry generate CLI command.
+    Feature spec parser + goedkeuringsgate voor foundry generate.
+    Hard fail + volledige checklist als geen goedgekeurde specs.
+    foundry features list + foundry features approve CLI commands.
 
 workitems:
-  - id: WI_0024
-    title: "Retriever — hybrid BM25 + dense vector search met Reciprocal Rank Fusion"
+  - id: WI_0030
+    title: "Feature spec parser (^## Approved$ detectie, naam/inhoud/datum)"
     type: digital
-    status: done
-    branch: wi/WI_0024-retriever
-    depends_on: [WI_0023]
-    outcome: >
-      Hybrid retriever: BM25 (FTS5) + dense (sqlite-vec) via RRF (k=60).
-      Modes: hybrid | dense | bm25. Vec table validatie bij startup (RuntimeError
-      als geen embeddings voor model). 19 unit tests groen.
-    evidence:
-      - src/foundry/rag/retriever.py
-      - tests/unit/rag/test_retriever.py
-
-  - id: WI_0024a
-    title: "HyDE query expansion (LLM hypothetisch antwoord als query vector)"
-    type: digital
-    status: done
-    branch: wi/WI_0024-retriever
-    depends_on: [WI_0024]
-    outcome: >
-      HyDE via litellm.completion() (hyde_model). Altijd embedding.model voor embed
-      — geen apart hyde_embedding_model. Failure non-fatal: fallback naar ruwe query.
-      Geïntegreerd in retriever.py (19 tests samen met WI_0024).
-    evidence:
-      - src/foundry/rag/retriever.py
-
-  - id: WI_0025
-    title: "Context assembler — relevantie scoring, conflict detectie, token budget"
-    type: digital
-    status: done
-    branch: wi/WI_0025-context-assembler
-    depends_on: [WI_0024a]
-    outcome: >
-      Batch relevantie scoring (0-10) via litellm.completion(); failure → score 10.
-      Conflict detectie: single LLM call → ConflictReport list; failure → leeg.
-      Token budget: chunks gevuld tot token_budget via count_tokens(). 24 unit tests groen.
-    evidence:
-      - src/foundry/rag/assembler.py
-      - tests/unit/rag/test_assembler.py
-
-  - id: WI_0026
-    title: "LiteLLM client wrapper (retry, backoff, API key validatie)"
-    type: digital
-    status: done
-    branch: wi/WI_0026-llm-client
+    status: pending
+    branch: wi/WI_0030-spec-parser
     depends_on: []
-    outcome: >
-      complete(), embed(), count_tokens(), get_context_window(), validate_api_key().
-      num_retries via LiteLLM ingebouwd (exponential backoff). count_tokens fallback:
-      4-char approx. get_context_window: litellm.get_model_info() + hardcoded tabel.
-      16 unit tests groen.
-    evidence:
-      - src/foundry/rag/llm_client.py
-      - tests/unit/rag/test_llm_client.py
 
-  - id: WI_0027
-    title: "Prompt templates (system prompt, <context> tags, token budget validatie)"
+  - id: WI_0031
+    title: "Approval gate enforcement in foundry generate (hard fail + checklist)"
     type: digital
-    status: done
-    branch: wi/WI_0027-prompt-templates
-    depends_on: [WI_0025, WI_0026]
-    outcome: >
-      build_prompt(): [brief → spec → summaries → <context>chunks</context>].
-      _load_brief(): lokaal bestand only; URL → ValueError (SSRF preventie).
-      Token budget warning >85% context window (geen hard fail).
-      Source summaries capped op max_source_summaries. 23 unit tests groen.
-    evidence:
-      - src/foundry/generate/templates.py
-      - tests/unit/generate/test_templates.py
+    status: pending
+    branch: wi/WI_0031-gate-enforcement
+    depends_on: [WI_0030]
 
-  - id: WI_0028
-    title: "Output writer (footnote bronattributie, output path validatie, overwrite guard)"
+  - id: WI_0032
+    title: "foundry features list — overzicht specs + goedkeuringsstatus"
     type: digital
-    status: done
-    branch: wi/WI_0028-output-writer
-    depends_on: [WI_0027]
-    outcome: >
-      add_attribution(): [^N] footnote block. validate_output_path(): relatieve
-      traversal geblokkeerd; absolute paden toegestaan. check_overwrite(): prompt
-      bij bestaand bestand; --yes slaat over. write_output(): atomisch via temp+rename.
-      22 unit tests groen.
-    evidence:
-      - src/foundry/generate/writer.py
-      - tests/unit/generate/test_writer.py
+    status: pending
+    branch: wi/WI_0032-features-list
+    depends_on: [WI_0030]
 
-  - id: WI_0029
-    title: "foundry generate CLI command"
+  - id: WI_0033
+    title: "foundry features approve <name> — goedkeuring registreren in spec bestand"
     type: digital
-    status: done
-    branch: wi/WI_0029-generate-cli
-    depends_on: [WI_0028]
-    outcome: >
-      foundry generate --topic TEXT --output PATH [--feature NAME] [--dry-run] [--yes].
-      Feature spec: auto-select bij één approved; --feature verplicht bij meerdere.
-      Conflict warnings getoond vóór generatie. Token budget warning via build_prompt().
-      Footnote attributie via add_attribution(). 12 unit tests groen; 388 totaal.
-    evidence:
-      - src/foundry/cli/generate.py
-      - src/foundry/cli/main.py
-      - tests/unit/cli/test_generate.py
+    status: pending
+    branch: wi/WI_0033-features-approve
+    depends_on: [WI_0030]
 
 metrics:
-  velocity_target: 7
-  completed_this_slice: 7
+  velocity_target: 4
+  completed_this_slice: 0
   carry_over_previous: 0

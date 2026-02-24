@@ -12,32 +12,32 @@ workitems:
   - id: WI_0048
     title: "CLI --help tekst audit — alle commands beschrijvend en compleet"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0048-help-text
     depends_on: []
 
   - id: WI_0047
     title: "Docstrings audit — alle publieke functies en klassen in src/foundry/"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0047-docstrings
     depends_on: []
 
   - id: WI_0046
     title: "CONTRIBUTING.md — developer guide"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0046-contributing
     depends_on: []
 
   - id: WI_0045
     title: "README.md — uitgebreide gebruikersdocumentatie (400+ regels)"
     type: digital
-    status: pending
+    status: done
     branch: wi/WI_0045-readme
     depends_on: []
 
 metrics:
   velocity_target: 4
-  completed_this_slice: 0
+  completed_this_slice: 4
   carry_over_previous: 0

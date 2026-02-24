@@ -57,23 +57,23 @@ _SCORER_MODEL = "openai/gpt-4o-mini"
 def build_cmd(
     output: Annotated[
         Path | None,
-        typer.Option("--output", "-o", help="Override delivery.output from foundry.yaml."),
+        typer.Option("--output", "-o", help="Output path for the delivery document. Overrides delivery.output in foundry.yaml."),
     ] = None,
     db: Annotated[
         Path,
-        typer.Option("--db", help="Path to .foundry.db."),
+        typer.Option("--db", help="Path to .foundry.db knowledge base."),
     ] = _DEFAULT_DB,
     dry_run: Annotated[
         bool,
-        typer.Option("--dry-run", help="Show section plan without LLM generation."),
+        typer.Option("--dry-run", help="Preview the delivery plan (sections, approval status) without calling the LLM."),
     ] = False,
     yes: Annotated[
         bool,
-        typer.Option("--yes", "-y", help="Skip confirmation prompts."),
+        typer.Option("--yes", "-y", help="Skip overwrite confirmation prompts (useful for CI/scripts)."),
     ] = False,
     pdf: Annotated[
         bool,
-        typer.Option("--pdf", help="Convert output to PDF via Pandoc (fail-open)."),
+        typer.Option("--pdf", help="Also export a PDF via Pandoc. Requires Pandoc on PATH; skipped gracefully if not found."),
     ] = False,
     features_dir: Annotated[
         Path,
@@ -84,7 +84,13 @@ def build_cmd(
         typer.Option("--slice", hidden=True, help="Override .forge/slice.yaml path (for testing)."),
     ] = _FORGE_SLICE,
 ) -> None:
-    """Assemble a consolidated delivery document from all approved features."""
+    """Assemble the official client delivery document from all approved features.
+
+    Reads the delivery: section from foundry.yaml and builds a single Markdown
+    document from three section types: generated (RAG + LLM), file (disk check),
+    and physical (WI status from .forge/slice.yaml). Use 'foundry generate' to
+    draft and review individual features before running build.
+    """
 
     # ---- Config ----
     try:

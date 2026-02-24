@@ -163,6 +163,23 @@ def test_search_fts_returns_chunk_and_score(repo):
     assert isinstance(score, float)
 
 
+def test_search_fts_query_with_commas_does_not_raise(repo):
+    """FTS5 MATCH rejects commas as syntax errors — query must be sanitised."""
+    repo.add_source(_source())
+    repo.add_chunk(_chunk(text="clinical AI architecture retrieval evaluation"))
+    # Should not raise OperationalError: fts5: syntax error near ","
+    results = repo.search_fts("clinical AI architecture, retrieval, evaluation")
+    assert isinstance(results, list)
+
+
+def test_search_fts_query_with_special_chars_does_not_raise(repo):
+    """Other punctuation (dots, colons) in queries must also be handled safely."""
+    repo.add_source(_source())
+    repo.add_chunk(_chunk(text="grounding best practices"))
+    results = repo.search_fts("grounding: best practices.")
+    assert isinstance(results, list)
+
+
 # ------------------------------------------------------------------
 # Vec embeddings
 # ------------------------------------------------------------------

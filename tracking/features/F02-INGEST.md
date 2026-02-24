@@ -6,7 +6,8 @@ project database. Elke chunk krijgt een LLM-gegenereerde context-prefix vóór e
 voor betere retrieval-precisie (D0004). Per bron wordt een globale samenvatting
 opgeslagen voor gebruik in de generation prompt (D0008).
 
-Ondersteunde formaten: Markdown, PDF, generiek JSON, EPUB, plain text, git (commits + diffs).
+Ondersteunde formaten: Markdown, PDF, generiek JSON, EPUB, plain text, git (commits + diffs),
+URL (web scraping), audio (.mp3/.wav/.m4a/.ogg/.flac/.mp4/.webm via Whisper transcriptie).
 
 ## Work Items
 - WI_0015: Chunker base class + chunk model
@@ -19,7 +20,7 @@ Ondersteunde formaten: Markdown, PDF, generiek JSON, EPUB, plain text, git (comm
   - Default: 400 tokens / 20% overlap
 - WI_0018: EPUB chunker (beautifulsoup4 + html2text, hoofdstuk-gebaseerd)
   - EPUB is een ZIP van HTML bestanden — uitpakken met stdlib `zipfile`, parsen met bs4
-  - Licentie: beautifulsoup4 (MIT) + html2text (GPL-3.0) — ebooklib (AGPL-3.0) niet gebruikt
+  - Licentie: beautifulsoup4 (MIT) + html2text (GPL-3.0, intern gebruik) — ebooklib (AGPL-3.0) niet gebruikt
   - Default: hoofdstuk-gebaseerd, max 800 tokens per chunk
 - WI_0019: JSON chunker (generiek — array of objects, of flat key-value)
   - Default: object-gebaseerd, max 300 tokens per chunk
@@ -36,6 +37,33 @@ Ondersteunde formaten: Markdown, PDF, generiek JSON, EPUB, plain text, git (comm
   - Authenticatie private repos (HTTPS): `GIT_TOKEN` env var →
     `https://{token}@github.com/...` — token nooit gelogd of in error output
   - Authenticatie SSH (`git@...`): systeem SSH keys via git natively
+- WI_0021b: Web chunker (URL scraping)
+  - Ondersteunde URL schema's: `https://`, `http://` — geen andere schema's
+  - **SSRF-bescherming:** `ipaddress` module — blokkeer private ranges (RFC 1918, loopback,
+    link-local) vóór verbinding. Hard fail met melding: "URL resolves to private address."
+  - Fetch: `urllib.request` (stdlib, geen requests dependency) + `Content-Type` check
+    (enkel text/html en text/plain geaccepteerd)
+  - HTML parsing: `beautifulsoup4` — verwijder script/style/nav/footer tags,
+    converteer naar plain text via `html2text` (GPL-3.0)
+  - Limiet: max 5MB response body — daarna hard fail met melding
+  - Timeout: 30 seconden connect + read timeout — daarna hard fail
+  - User-Agent header: `foundry/0.x (+https://github.com/user/foundry)`
+  - Redirect: max 3 redirects — daarna hard fail
+  - Resultaat: plain text → plain text chunker (WI_0020)
+- WI_0021c: Audio chunker (Whisper transcriptie via LiteLLM)
+  - Ondersteunde formaten: `.mp3`, `.wav`, `.m4a`, `.ogg`, `.flac`, `.mp4`, `.webm`
+  - **Grootte check vóór API call:** `os.path.getsize()` — als > 25MB → hard fail:
+    "Audio file exceeds 25MB limit. Split the file and ingest separately."
+  - API call: `litellm.transcription(model="openai/whisper-1", file=open(path, "rb"))`
+  - Cost estimate vóór transcriptie:
+    ```
+    Transcribing: meeting-recording.mp3
+      Duration estimate: ~45 min  (gebaseerd op bestandsgrootte / ~1MB/min)
+      Estimated cost: ~$0.27  (whisper-1: $0.006/min)
+    Continue? [y/N]:
+    ```
+  - Transcriptie output → plain text chunker (WI_0020) met `chunk_size=512`
+  - Metadata: `{"source_type": "audio", "format": ".mp3"}` opgeslagen in chunk metadata
 - WI_0022: Embedding writer (LiteLLM → sqlite-vec)
   - Interface: `litellm.embedding()` — provider/model via config
   - Contextual embedding (D0004): `litellm.completion()` genereert context-prefix per chunk
@@ -52,13 +80,17 @@ Ondersteunde formaten: Markdown, PDF, generiek JSON, EPUB, plain text, git (comm
   - Config: `ingest.summary_model` (default `openai/gpt-4o-mini`),
     `ingest.summary_max_tokens` (default 500)
 - WI_0023: `foundry ingest` CLI command
-  - `--source PATH`: bestand of directory (verplicht, herhaalbaar: `--source a.pdf --source b.pdf`)
+  - `--source PATH`: bestand, directory, URL of audio bestand (verplicht, herhaalbaar)
   - **Pad validatie (security):** pad genormaliseerd en gecontroleerd — geen path traversal
     (`../../etc/passwd`). Paden buiten de opgegeven locatie → hard fail.
   - **Directory ingest:** `--source docs/` verwerkt alle bestanden direct in die directory
-    (niet recursief). Herkende extensies: `.pdf`, `.md`, `.epub`, `.txt`, `.json`.
+    (NIET recursief tenzij `--recursive` opgegeven). Herkende extensies:
+    `.pdf`, `.md`, `.epub`, `.txt`, `.json`, `.mp3`, `.wav`, `.m4a`, `.ogg`, `.flac`.
     Onbekende extensies: skip met melding (`Skipping: diagram.dxf (unsupported format)`).
     `--exclude .json` om extensies uit te sluiten.
+  - **`--recursive`:** verwerkt ook subdirectories (depth-first, max 10 niveaus diep)
+  - **URL ingest:** `--source https://...` → web chunker (WI_0021b), SSRF-check first
+  - **Audio ingest:** `.mp3`/`.wav`/`.m4a`/`.ogg`/`.flac`/`.mp4`/`.webm` → audio chunker (WI_0021c)
   - `--dry-run`: toont chunk verdeling + LLM cost estimate zonder API calls
   - `--yes`: slaat cost estimate bevestigingsprompt over (voor CI/scripts)
   - Cost estimate output vóór LLM calls:
@@ -123,6 +155,15 @@ chunkers:
 - [ ] `foundry ingest --source /path/to/file.pdf` slaat chunks + embeddings op
 - [ ] `foundry ingest --source docs/` verwerkt alle direct-in-directory bestanden met
       ondersteunde extensies; onbekende extensies krijgen een skip melding
+- [ ] `foundry ingest --source docs/ --recursive` verwerkt ook subdirectories (max 10 diep)
+- [ ] `foundry ingest --source https://example.com` scrapet pagina via web chunker
+- [ ] **SSRF:** `--source http://169.254.169.254/` → hard fail (private address)
+- [ ] **SSRF:** `--source http://192.168.1.1/` → hard fail (private range RFC 1918)
+- [ ] Web chunker max 5MB response, 30s timeout — hard fail bij overschrijding
+- [ ] `foundry ingest --source recording.mp3` transcribeert audio via Whisper
+- [ ] Audio > 25MB → hard fail met instructie bestand te splitsen
+- [ ] Audio cost estimate getoond vóór transcriptie; `--yes` slaat over
+- [ ] Audio chunker ondersteunt: `.mp3`, `.wav`, `.m4a`, `.ogg`, `.flac`, `.mp4`, `.webm`
 - [ ] `foundry ingest --dry-run` toont chunk verdeling + cost estimate zonder API calls
 - [ ] Cost estimate toont waarschuwing als `context_model` een duur model is
 - [ ] Cost estimate prompt verschijnt vóór LLM calls; `--yes` slaat prompt over

@@ -4,7 +4,7 @@
 
 Foundry is a **project-agnostic knowledge-to-document CLI tool**.
 
-It ingests source material (Markdown, PDF, JSON, EPUB, plain text, git repos),
+It ingests source material (Markdown, PDF, JSON, EPUB, plain text, git repos, URLs, audio),
 stores chunks + embeddings in a per-project SQLite database (sqlite-vec),
 and generates structured Markdown documents via RAG + LLM.
 
@@ -50,7 +50,8 @@ Locked decisions. Deviations require an ADR in `tracking/decisions/`.
 | Default Embedding | `openai/text-embedding-3-small` |
 | CLI | `typer` + `rich` |
 | PDF parsing | `pypdf` |
-| EPUB parsing | `beautifulsoup4` + `html2text` (MIT — geen AGPL) |
+| EPUB + HTML parsing | `beautifulsoup4` + `html2text` (GPL-3.0, intern gebruik — geen AGPL) |
+| Audio transcriptie | `litellm.transcription()` → OpenAI Whisper |
 | Testing | `pytest` |
 
 ---
@@ -61,12 +62,14 @@ Locked decisions. Deviations require an ADR in `tracking/decisions/`.
 src/foundry/          # Engine — project-agnostic, no exceptions
   cli/                # CLI entry points
   db/                 # SQLite schema, sqlite-vec integration
-  ingest/             # Chunkers per source type
+  ingest/             # Chunkers per source type (PDF, MD, EPUB, JSON, txt, git, web, audio)
   rag/                # Retrieval + context assembly
   generate/           # LLM calls, prompt templates, output writers
+  governance/         # foundry governance built-in (bash-intercept, audit, status)
+  plan/               # foundry plan (LLM-assisted feature + WI generation)
 tests/                # pytest, mirrors src/
 tracking/
-  features/           # F-*.md feature specs (F00–F05)
+  features/           # F-*.md feature specs (F00–F07)
   decisions/          # DECISIONS.md — append-only ADR log
   STATUS.md           # Auto-generated sprint status (never edit manually)
 .forge/               # Governance engine (governor + contracts + slice)
@@ -96,10 +99,12 @@ No force push. No direct commits to `main` or `develop`.
 |-------|------|-------|
 | 0 | Scaffold | pyproject.toml, package skeleton, CLAUDE.md, governance |
 | 1 | DB Layer | sqlite-vec schema, chunk + embedding tables |
-| 2 | Ingest | Chunkers (Markdown, PDF, JSON, EPUB, plain text, git) |
-| 3 | RAG + Generate | Retrieval, context assembly, LLM generation |
+| 2 | Ingest | Chunkers (Markdown, PDF, JSON, EPUB, plain text, git, web, audio) |
+| 3 | RAG + Generate | Retrieval, context assembly, token budget, LLM generation |
 | 4 | Feature Gates | features/ parsing, approval check, gate enforcement |
-| 5 | CLI Polish | foundry init/ingest/generate/features, dry-run |
+| 5 | CLI Polish | foundry init/ingest/generate/build/features, project wizard |
+| 6 | Project Governance | foundry wi/sprint/governance built-in, WI types, hardware lifecycle |
+| 7 | LLM Planning | foundry plan, LLM-assisted feature + WI generation |
 
 Current phase and allowed outputs are always in `.forge/slice.yaml`.
 

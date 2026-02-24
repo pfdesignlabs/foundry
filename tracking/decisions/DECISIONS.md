@@ -346,3 +346,127 @@ Duidelijke scheiding tussen interne workflow en klantoutput. `foundry build` is 
 samenstellende stap die de klantlevering produceert. Feature specs kunnen zowel intern
 als extern zijn — de `delivery:` config bepaalt dit. Geen aparte "klantmodus" nodig;
 de architectuur ondersteunt beide gebruikspatronen via dezelfde primitieven.
+
+---
+
+## D0015 — Project Governance via foundry governance Built-in
+
+**Datum:** 2026-02-24
+**Status:** Accepted
+
+**Context:**
+Foundry scaffoldt governance-machinerie in nieuwe projecten (git init, .forge/, hooks).
+Het alternatief was governor.py kopiëren naar elk project. Dit leidt tot duplicatie:
+bugs in governor.py moeten in elk project apart gerepareerd worden, en projecten lopen
+uit de pas met de Foundry-versie die hen aanstuurde.
+
+**Beslissing:**
+Geen governor.py kopie per project. De `pre-bash.sh` hook in scaffolded projecten roept
+`foundry governance bash-intercept` aan — een built-in Foundry CLI subcommand.
+Hook is fail-open: `command -v foundry >/dev/null 2>&1 && exec foundry governance bash-intercept; exit 0`.
+Als Foundry niet in PATH: hook doet niets (project werkt ook zonder Foundry).
+`foundry governance` vereist alleen `.forge/contracts/` en `.forge/slice.yaml` — geen DB dependency.
+
+**Gevolg:**
+Governance code altijd actueel — projects gebruiken de geïnstalleerde Foundry versie.
+Projecten die Foundry niet geïnstalleerd hebben: geen governance maar ook geen crash.
+`.forge/` bevat: contracts/ + slice.yaml + hooks/ (NIET governor.py).
+
+---
+
+## D0016 — Project Context als Permanent System Prompt Context
+
+**Datum:** 2026-02-24
+**Status:** Accepted
+
+**Context:**
+`tracking/project-context.md` (gegenereerd door `foundry init` wizard) bevat project charter:
+klantbehoeftes, succesfactoren, operator doelen, omgeving, capabilities, kennistekorten.
+Dit document moet altijd beschikbaar zijn bij generatie — niet als reguliere bron (chunked),
+maar als permanente context die elke generate-aanroep conditioneert.
+
+**Beslissing:**
+`project.brief` in foundry.yaml wijst naar `tracking/project-context.md` als lokaal bestandspad.
+Foundry laadt dit bestand verbatim als eerste blok in de system prompt bij elke generate-aanroep.
+Geen URL-ondersteuning voor `project.brief` (SSRF preventie). Token guard: als brief >
+`project.brief_max_tokens` (default 3000) tokens: WARN + truncate.
+Tracking/sources.md is bewust niet machine-parsed — tracking is human-only.
+
+**Gevolg:**
+LLM heeft altijd project context bij generatie. Operator houdt één bestand bij
+(project-context.md) dat zowel planningsdocument als system prompt brief is.
+
+---
+
+## D0017 — Knowledge-First Workflow
+
+**Datum:** 2026-02-24
+**Status:** Accepted
+
+**Context:**
+De initiële workflow beschreef: features schrijven → ingest → generate. Dit klopt niet.
+Features die blind geschreven worden (zonder kennisbank) missen contextuele precisie:
+de operator weet niet wat er beschikbaar is in de bronnen, wat ontbreekt, of welke
+capabilities echt haalbaar zijn gegeven de ingested kennis.
+
+**Beslissing:**
+De juiste volgorde is knowledge-first:
+1. `foundry init` → project charter wizard → kennistekorten-checklist (tracking/sources.md)
+2. `foundry ingest` → kennisbank opbouwen op basis van geïdentificeerde kennistekorten
+3. `foundry plan` (optioneel) → LLM-assisted draft van features op basis van kennisbank
+4. Feature specs schrijven (geïnformeerd door kennisbank)
+5. `foundry features approve` → gate
+6. `foundry generate` → review per feature
+7. `foundry build` → klantlevering
+
+**Gevolg:**
+Features zijn altijd geïnformeerd door werkelijke beschikbare kennis. De init wizard
+genereert een kennistekorten-checklist als startpunt voor ingest.
+
+---
+
+## D0018 — Hardware Lifecycle Fasen als First-class Concept
+
+**Datum:** 2026-02-24
+**Status:** Accepted
+
+**Context:**
+Hardware product development kent vaste validatiepoorten: POC → EVT-1 → EVT-x → DVT-1
+→ DVT-x → PVT → MP. PF Design Labs werkt met deze fasen. Sprints in Foundry-projecten
+moeten gekoppeld kunnen worden aan deze fasen voor traceerbaarheid.
+
+**Beslissing:**
+Optioneel `phase` veld op sprint-niveau in slice.yaml. Geldige waarden:
+POC | EVT-1 | EVT-2 | DVT-1 | DVT-2 | PVT | MP | intern.
+`foundry sprint create` wizard vraagt naar projectfase. `foundry status` toont fase-history.
+Fase is optioneel — projecten zonder hardware lifecycle laten `phase` weg.
+
+**Gevolg:**
+Hardware product development lifecycle is traceerbaar per sprint. Geen verplicht onderdeel —
+intern projecten en software-only projecten negeren het `phase` veld.
+
+---
+
+## D0019 — foundry plan als LLM-assisted Discovery Tool (F07)
+
+**Datum:** 2026-02-24
+**Status:** Accepted
+
+**Context:**
+Na initiële ingest is er een kloof tussen de kennisbank en de feature specs.
+De operator moet handmatig bepalen welke capabilities features worden en welke WIs
+logisch zijn. Dit kost tijd en riskeert dat capabilities over het hoofd worden gezien.
+
+**Beslissing:**
+`foundry plan` als apart CLI subcommand (F07-PLANNING). Leest project-context.md +
+source_summaries uit DB. LLM analyseert capabilities → features → WIs en schrijft:
+- Draft features/*.md (met disclaimer header, NOOIT ## Approved)
+- Aanvulling tracking/work-items.md
+- Kennistekorten-lijst die nog open staan
+
+Menselijke review verplicht. `foundry features approve` gate blijft ongewijzigd.
+Bestaande features/*.md nooit overschreven.
+
+**Gevolg:**
+Discovery → feature-writing stap versneld zonder menselijke controle te verliezen.
+Prompt injection risico gemitigeerd via disclaimer header + verplichte menselijke review.

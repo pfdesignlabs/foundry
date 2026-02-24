@@ -190,3 +190,64 @@ def test_prefix_generation_failure_falls_back_to_empty(repo, vec_table, monkeypa
 
     stored = repo.get_chunk_by_rowid(rowids[0])
     assert stored.context_prefix == ""
+
+
+# ------------------------------------------------------------------
+# on_progress callback (WI_0035)
+# ------------------------------------------------------------------
+
+
+def test_write_calls_on_progress_per_chunk(repo, vec_table, monkeypatch):
+    """on_progress is called once per chunk with zero-based index."""
+    monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
+    ctx, emb = _mock_litellm()
+
+    progress_calls: list[int] = []
+
+    with ctx, emb:
+        writer = EmbeddingWriter(repo, EmbeddingConfig())
+        chunks = [
+            Chunk(source_id="src-1", chunk_index=0, text="Chunk A"),
+            Chunk(source_id="src-1", chunk_index=1, text="Chunk B"),
+            Chunk(source_id="src-1", chunk_index=2, text="Chunk C"),
+        ]
+        writer.write(chunks, vec_table, on_progress=progress_calls.append)
+
+    assert progress_calls == [0, 1, 2]
+
+
+def test_write_no_progress_callback_is_ok(repo, vec_table, monkeypatch):
+    """on_progress=None (default) does not raise."""
+    monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
+    ctx, emb = _mock_litellm()
+
+    with ctx, emb:
+        writer = EmbeddingWriter(repo, EmbeddingConfig())
+        chunk = Chunk(source_id="src-1", chunk_index=0, text="Chunk A")
+        rowids = writer.write([chunk], vec_table)  # no on_progress arg
+
+    assert len(rowids) == 1
+
+
+def test_write_on_progress_called_after_db_write(repo, vec_table, monkeypatch):
+    """on_progress fires after the chunk is persisted (not before)."""
+    monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
+    ctx, emb = _mock_litellm()
+
+    stored_at_progress: list[int] = []
+
+    def _callback(idx: int) -> None:
+        # At callback time, idx+1 chunks should be in the DB
+        count = repo.count_chunks_by_source("src-1")
+        stored_at_progress.append(count)
+
+    with ctx, emb:
+        writer = EmbeddingWriter(repo, EmbeddingConfig())
+        chunks = [
+            Chunk(source_id="src-1", chunk_index=0, text="A"),
+            Chunk(source_id="src-1", chunk_index=1, text="B"),
+        ]
+        writer.write(chunks, vec_table, on_progress=_callback)
+
+    # After chunk 0: 1 in DB; after chunk 1: 2 in DB
+    assert stored_at_progress == [1, 2]

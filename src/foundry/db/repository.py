@@ -210,9 +210,13 @@ class Repository:
         bm25() returns negative values; lower (more negative) = better match.
         We return the raw bm25 score so callers can apply thresholds.
         """
+        import re
+        # FTS5 MATCH rejects punctuation like commas as syntax errors.
+        # Sanitise by replacing non-alphanumeric, non-space chars with spaces.
+        fts_query = re.sub(r"[^\w\s]", " ", query)
         fts_rows = self._conn.execute(
             "SELECT rowid, bm25(chunks_fts) AS score FROM chunks_fts WHERE text MATCH ? ORDER BY score LIMIT ?",
-            (query, limit),
+            (fts_query, limit),
         ).fetchall()
 
         results: list[tuple[Chunk, float]] = []

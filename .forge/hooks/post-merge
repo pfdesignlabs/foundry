@@ -1,0 +1,34 @@
+#!/bin/sh
+# post-merge hook — auto-archiveert sprint record na merge naar develop
+#
+# Triggert wanneer: git merge of git pull een merge uitvoert (niet fast-forward)
+# Detecteert: of we op develop branch zijn
+# Actie: python .forge/governor.py sprint-close
+#         → genereert tracking/sprints/SP_XXX.md vanuit .forge/slice.yaml
+#         → werkt tracking/STATUS.md bij
+#
+# Fail-open: als governor niet beschikbaar is, blokkeer nooit de merge.
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+
+if [ "$CURRENT_BRANCH" != "develop" ]; then
+    exit 0
+fi
+
+if ! command -v python >/dev/null 2>&1; then
+    exit 0
+fi
+
+if [ ! -f ".forge/governor.py" ]; then
+    exit 0
+fi
+
+echo "🔧 Governor: sprint-close na develop merge..." >&2
+python .forge/governor.py sprint-close >&2
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "✅ Sprint record gearchiveerd in tracking/sprints/" >&2
+fi
+
+exit 0

@@ -137,8 +137,12 @@ Current phase and allowed outputs are always in `.forge/slice.yaml`.
 ## Development Workflow
 
 ```bash
+# First-time setup (run once per clone)
 uv venv && source .venv/bin/activate
 uv sync
+git config core.hooksPath .forge/hooks/  # activate versioned git hooks
+
+# Daily workflow
 uv lock                             # pin transitive deps (commit uv.lock)
 pytest                              # run tests (e2e excluded by default)
 pytest -m e2e                       # run e2e tests (requires API keys)
@@ -146,6 +150,10 @@ ruff check src/                     # lint
 mypy src/foundry/                   # type check
 python .forge/governor.py status    # sprint status
 ```
+
+**Sprint close (auto):** After `git pull` on develop following a PR merge, the
+`post-merge` git hook automatically runs `python .forge/governor.py sprint-close`,
+which archives the sprint record to `tracking/sprints/SP_XXX.md` and updates `tracking/STATUS.md`.
 
 ---
 

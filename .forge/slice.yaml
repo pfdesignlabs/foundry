@@ -13,7 +13,18 @@ workitems:
   - id: WI_0012
     title: "Verbindingslaag + schema: sources + chunks tabellen"
     type: digital
-    status: pending
+    status: done
+    branch: wi/WI_0012-db-schema
+    outcome: >
+      Database connection layer geïmplementeerd met sqlite-vec extensie.
+      Sources, chunks en schema_version tabellen aangemaakt via initialize().
+      WAL journal mode, foreign keys, row_factory ingesteld. 16 unit tests groen.
+    evidence:
+      - src/foundry/db/connection.py
+      - src/foundry/db/schema.py
+      - src/foundry/db/__init__.py
+      - tests/unit/db/test_connection.py
+      - tests/unit/db/test_schema.py
     description: >
       SQLite verbinding opzetten met sqlite-vec extensie. Sources tabel:
       id (UUID TEXT PK), path (TEXT relatief), content_hash (TEXT SHA-256),

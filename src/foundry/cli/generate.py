@@ -60,34 +60,39 @@ _FEATURES_DIR = Path("features")
 def generate_cmd(
     topic: Annotated[
         str,
-        typer.Option("--topic", "-t", help="Query / topic for retrieval (required)."),
+        typer.Option("--topic", "-t", help="Topic or question to retrieve context for (e.g. 'DMX wiring diagram')."),
     ],
     output: Annotated[
         str,
-        typer.Option("--output", "-o", help="Output file path (required)."),
+        typer.Option("--output", "-o", help="Output file path for the draft document (e.g. drafts/wiring.md)."),
     ],
     feature: Annotated[
         str | None,
         typer.Option(
             "--feature",
             "-f",
-            help="Feature spec name without .md extension (auto-selected if only one approved).",
+            help="Feature spec name without .md extension. Auto-selected when only one approved spec exists.",
         ),
     ] = None,
     db: Annotated[
         Path,
-        typer.Option("--db", help="Path to .foundry.db (created if missing)."),
+        typer.Option("--db", help="Path to .foundry.db. Created automatically if missing."),
     ] = Path(_DEFAULT_DB),
     dry_run: Annotated[
         bool,
-        typer.Option("--dry-run", help="Show retrieval + assembled prompt without LLM generation."),
+        typer.Option("--dry-run", help="Show retrieved chunks and assembled prompt without calling the LLM."),
     ] = False,
     yes: Annotated[
         bool,
-        typer.Option("--yes", "-y", help="Skip confirmation prompts."),
+        typer.Option("--yes", "-y", help="Skip overwrite and cost confirmation prompts."),
     ] = False,
 ) -> None:
-    """Generate a document for a feature using RAG + LLM."""
+    """Operator review tool: generate a per-feature draft document via RAG + LLM.
+
+    Use this to review and iterate on feature content before delivery.
+    This is NOT the client delivery tool — use 'foundry build' to assemble
+    the official delivery document from all approved features.
+    """
 
     # ---- Output path validation (security) ----
     try:

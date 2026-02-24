@@ -1,171 +1,65 @@
 slice:
-  id: SP_003
-  name: "Phase 2 — Ingest Pipeline (F02-INGEST)"
+  id: SP_004
+  name: "Phase 3 — RAG + Generate (F03-RAG)"
   started: 2026-02-24
   target: 2026-03-14
   goal: >
-    Volledige ingest pipeline implementeren: chunkers voor alle ondersteunde formaten
-    (MD, PDF, EPUB, JSON, plain text, git, web, audio), embedding writer met contextual
-    prefix (D0004), document summarizer bij ingest (D0008), en foundry ingest CLI command
-    met deduplicatie, recovery, cost estimate en pad/SSRF/audio-grootte validatie.
+    Volledige RAG + generatie pipeline: hybrid retrieval (BM25 + dense, RRF),
+    HyDE query expansion, context assembler (relevantie scoring, conflict detectie,
+    token budget), LiteLLM client wrapper, prompt templates met <context> tags,
+    output writer met footnote attributie, en foundry generate CLI command.
 
 workitems:
-  - id: WI_0016
-    title: "Chunker base class + Markdown chunker (heading-aware + fixed window fallback)"
+  - id: WI_0024
+    title: "Retriever — hybrid BM25 + dense vector search met Reciprocal Rank Fusion"
     type: digital
-    status: done
-    branch: wi/WI_0016-markdown-chunker
-    depends_on: [WI_0015]
-    outcome: >
-      BaseChunker: abstract chunk(), count_tokens() (4-char approx), _split_fixed_window(),
-      _make_chunks(). MarkdownChunker: H1/H2/H3 heading-aware splits; oversized sections
-      further split; fallback to fixed window when no headings. 24 unit tests groen.
-    evidence:
-      - src/foundry/ingest/base.py
-      - src/foundry/ingest/markdown.py
-      - tests/unit/ingest/test_markdown_chunker.py
+    status: pending
+    branch: wi/WI_0024-retriever
+    depends_on: [WI_0023]
 
-  - id: WI_0017
-    title: "PDF chunker (pypdf, pagina-gebaseerd)"
+  - id: WI_0024a
+    title: "HyDE query expansion (LLM hypothetisch antwoord als query vector)"
     type: digital
-    status: done
-    branch: wi/WI_0017-pdf-chunker
-    depends_on: [WI_0016]
-    outcome: >
-      PdfChunker via pypdf.PdfReader. Import op module-niveau (patchbaar).
-      Default 400 tokens / 20% overlap. 11 unit tests groen.
-    evidence:
-      - src/foundry/ingest/pdf.py
-      - tests/unit/ingest/test_pdf_chunker.py
+    status: pending
+    branch: wi/WI_0024-retriever
+    depends_on: [WI_0024]
 
-  - id: WI_0018
-    title: "EPUB chunker (bs4 + html2text, hoofdstuk-gebaseerd)"
+  - id: WI_0025
+    title: "Context assembler — relevantie scoring, conflict detectie, token budget"
     type: digital
-    status: done
-    branch: wi/WI_0018-epub-chunker
-    depends_on: [WI_0016]
-    outcome: >
-      EpubChunker via stdlib zipfile + bs4 (html.parser) + html2text (GPL-3.0).
-      OPF spine parsing. XMLParsedAsHTMLWarning gesuppressed. 10 unit tests groen.
-    evidence:
-      - src/foundry/ingest/epub.py
-      - tests/unit/ingest/test_epub_chunker.py
+    status: pending
+    branch: wi/WI_0025-context-assembler
+    depends_on: [WI_0024a]
 
-  - id: WI_0019
-    title: "JSON chunker (generiek — array of objects of flat key-value)"
+  - id: WI_0026
+    title: "LiteLLM client wrapper (retry, backoff, API key validatie)"
     type: digital
-    status: done
-    branch: wi/WI_0019-json-chunker
-    depends_on: [WI_0016]
-    outcome: >
-      JsonChunker: json.loads(), groepering op token budget. Fallback naar fixed window
-      bij ongeldige JSON. 13 unit tests groen.
-    evidence:
-      - src/foundry/ingest/json_chunker.py
-      - tests/unit/ingest/test_json_chunker.py
+    status: pending
+    branch: wi/WI_0026-llm-client
+    depends_on: []
 
-  - id: WI_0020
-    title: "Plain text chunker (vaste window + overlap)"
+  - id: WI_0027
+    title: "Prompt templates (system prompt, <context> tags, token budget validatie)"
     type: digital
-    status: done
-    branch: wi/WI_0019-json-chunker
-    depends_on: [WI_0016]
-    outcome: >
-      PlainTextChunker: delegeert naar _split_fixed_window(). 512 tokens / 10% overlap.
-      9 unit tests groen.
-    evidence:
-      - src/foundry/ingest/plaintext.py
-      - tests/unit/ingest/test_plaintext_chunker.py
+    status: pending
+    branch: wi/WI_0027-prompt-templates
+    depends_on: [WI_0025, WI_0026]
 
-  - id: WI_0021
-    title: "Git chunker (commits + diffs — lokaal + clone)"
+  - id: WI_0028
+    title: "Output writer (footnote bronattributie, output path validatie, overwrite guard)"
     type: digital
-    status: done
-    branch: wi/WI_0021-git-chunker
-    depends_on: [WI_0016]
-    outcome: >
-      GitChunker: shell=False altijd. URL scheme whitelist via "://" pattern.
-      tempfile.mkdtemp() + os.chmod(0o700) + atexit.register(). GIT_TOKEN sanitised
-      in errors. 24 unit tests groen.
-    evidence:
-      - src/foundry/ingest/git_chunker.py
-      - tests/unit/ingest/test_git_chunker.py
+    status: pending
+    branch: wi/WI_0028-output-writer
+    depends_on: [WI_0027]
 
-  - id: WI_0021b
-    title: "Web chunker (URL scraping, SSRF guard)"
+  - id: WI_0029
+    title: "foundry generate CLI command"
     type: digital
-    status: done
-    branch: wi/WI_0021b-web-chunker
-    depends_on: [WI_0020]
-    outcome: >
-      WebChunker: SSRF guard via ipaddress (private/loopback/reserved geblokkeerd).
-      https/http only. Content-Type whitelist. 5MB cap. 30s timeout. Max 3 redirects.
-      20 unit tests groen.
-    evidence:
-      - src/foundry/ingest/web.py
-      - tests/unit/ingest/test_web_chunker.py
-
-  - id: WI_0021c
-    title: "Audio chunker (Whisper transcriptie via LiteLLM)"
-    type: digital
-    status: done
-    branch: wi/WI_0021c-audio-chunker
-    depends_on: [WI_0020]
-    outcome: >
-      AudioChunker: os.path.getsize() check voor API call (>25MB hard fail).
-      litellm.transcription(model="openai/whisper-1"). cost estimate afgedrukt.
-      yes=True slaat prompt over. 13 unit tests groen.
-    evidence:
-      - src/foundry/ingest/audio.py
-      - tests/unit/ingest/test_audio_chunker.py
-
-  - id: WI_0022
-    title: "Embedding writer (LiteLLM, contextual prefix per chunk)"
-    type: digital
-    status: done
-    branch: wi/WI_0022-embedding-writer
-    depends_on: [WI_0016]
-    outcome: >
-      EmbeddingWriter: context prefix via litellm.completion() per chunk (D0004).
-      Embed f"{prefix}\n\n{chunk.text}". Waarschuwing bij duur context_model.
-      API key check. 10 unit tests groen.
-    evidence:
-      - src/foundry/ingest/embedding_writer.py
-      - tests/unit/ingest/test_embedding_writer.py
-
-  - id: WI_0022a
-    title: "Document-samenvatting bij ingest"
-    type: digital
-    status: done
-    branch: wi/WI_0022-embedding-writer
-    depends_on: [WI_0022]
-    outcome: >
-      DocumentSummarizer: litellm.completion() samenvatting per bron. Upsert in
-      source_summaries. LLM failure non-fatal (lege string). 7 unit tests groen.
-    evidence:
-      - src/foundry/ingest/summarizer.py
-      - tests/unit/ingest/test_summarizer.py
-
-  - id: WI_0023
-    title: "foundry ingest CLI command"
-    type: digital
-    status: done
-    branch: wi/WI_0023-ingest-cli
-    depends_on: [WI_0022, WI_0022a]
-    outcome: >
-      foundry ingest --source (herhaalbaar), --db, --dry-run, --yes, --recursive,
-      --exclude. Source dispatch op extensie/URL-schema. Deduplicatie via SHA-256 hash.
-      Recovery bij partiële ingest (0 chunks). Cost estimate voor embedding.
-      Directory scanning (direct + recursief, max 10 niveaus). Rich progress spinners.
-      foundry version command toegevoegd (multi-command app structuur).
-      16 unit tests groen, 272 totaal.
-    evidence:
-      - src/foundry/cli/__init__.py
-      - src/foundry/cli/main.py
-      - src/foundry/cli/ingest.py
-      - tests/unit/cli/test_ingest.py
+    status: pending
+    branch: wi/WI_0029-generate-cli
+    depends_on: [WI_0028]
 
 metrics:
-  velocity_target: 11
-  completed_this_slice: 11
+  velocity_target: 7
+  completed_this_slice: 0
   carry_over_previous: 0

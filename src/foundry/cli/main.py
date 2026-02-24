@@ -7,6 +7,7 @@ from typing import Annotated
 
 import typer
 
+from foundry.cli.build import build_cmd
 from foundry.cli.features import features_app
 from foundry.cli.generate import generate_cmd
 from foundry.cli.init import init_cmd
@@ -51,6 +52,7 @@ def main_callback(
     """Foundry — knowledge-to-document CLI."""
 
 
+app.command("build")(build_cmd)
 app.command("init")(init_cmd)
 app.command("ingest")(ingest_cmd)
 app.command("generate")(generate_cmd)
